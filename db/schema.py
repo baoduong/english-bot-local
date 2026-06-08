@@ -111,6 +111,19 @@ def init_db():
         )
     ''')
 
+    # 9. Bảng speaking patterns — theo dõi cấu trúc nói quen thuộc (P1: C6)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS speaking_patterns (
+            user_id TEXT,
+            pattern TEXT,
+            attempt_count INTEGER DEFAULT 0,
+            total_score REAL DEFAULT 0,
+            mastery_level TEXT DEFAULT 'unknown',
+            last_seen TEXT,
+            PRIMARY KEY (user_id, pattern)
+        )
+    ''')
+
     # Nạp dữ liệu mẫu nếu kho câu hỏi đang trống
     cursor.execute("SELECT COUNT(*) FROM sentences")
     if cursor.fetchone()[0] == 0:

@@ -7,6 +7,7 @@ from db.sentences import get_next_sentence, update_sentence_progress
 from db.tracking import save_failed_word, clear_failed_word, log_score, log_error_pattern, get_user_stats
 from db.word_stats import record_word_attempt, record_word_attempts_batch, get_weak_words, get_strong_words
 from db.phoneme_tracking import record_phoneme_error, record_phoneme_errors_batch, get_weak_phonemes
+from db.patterns import (record_pattern_attempt, record_pattern_attempts_batch,
+                         get_weak_patterns, get_strong_patterns, get_all_patterns)
 
-# Initialize database on import (preserves original behavior)
 init_db()

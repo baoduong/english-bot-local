@@ -11,9 +11,13 @@ from database import (get_or_create_user, get_next_sentence, update_user_progres
                       log_score, log_error_pattern, get_user_stats, adjust_user_level,
                       increment_total_sessions,
                       record_word_attempts_batch, get_weak_words,
-                      record_phoneme_errors_batch, get_weak_phonemes)
+                      record_phoneme_errors_batch, get_weak_phonemes,
+                      record_pattern_attempts_batch, get_weak_patterns)
 from ai_brain import (analyze_audio_with_whisper, analyze_single_word, send_new_word_tutorial,
                       generate_sample_audio, ERROR_TYPE_LABELS)
+from analysis.patterns import extract_patterns
+from analysis.learning_memory import (get_learner_profile, get_learning_insights,
+                                      get_practice_recommendations)
 
 load_dotenv()
 
@@ -273,9 +277,72 @@ async def on_message(message):
         return
 
     # ========================================================
+    # LỆNH XEM HỒ SƠ HỌC: !profile
+    # ========================================================
+    if message.content.strip() == "!profile":
+        profile = get_learner_profile(user_id)
+        insights = get_learning_insights(user_id)
+        recs = get_practice_recommendations(user_id, limit=5)
+
+        if not profile["hard_words"] and not profile["hard_phonemes"] and not profile["hard_patterns"]:
+            await message.reply("📋 Chưa có đủ dữ liệu để phân tích. Luyện thêm vài phiên rồi quay lại nhé!")
+            return
+
+        msg = "📋 **HỒ SƠ HỌC TẬP CỦA BẠN**\n\n"
+
+        if profile["hard_words"]:
+            msg += "🔴 **Từ đang yếu:**\n"
+            for w in profile["hard_words"][:5]:
+                msg += f"  • *{w['word']}* — {w['mastery']} ({w['attempt_count']} lần, pass {w['success_rate']}%)\n"
+            msg += "\n"
+
+        if profile["hard_phonemes"]:
+            msg += "🔤 **Âm đang yếu:**\n"
+            for p in profile["hard_phonemes"][:5]:
+                examples = ", ".join(p["example_words"][:3]) if p["example_words"] else ""
+                msg += f"  • /{p['phoneme']}/ — {p['mastery']} ({p['error_count']} lỗi)"
+                if examples:
+                    msg += f" vd: {examples}"
+                msg += "\n"
+            msg += "\n"
+
+        if profile["hard_patterns"]:
+            msg += "🗣️ **Cấu trúc cần luyện:**\n"
+            for pt in profile["hard_patterns"][:5]:
+                msg += f"  • \"{pt['pattern']}\" — {pt['mastery']} (TB {pt['avg_score']}/100)\n"
+            msg += "\n"
+
+        if profile["mastered_words"]:
+            mastered_sample = ", ".join(profile["mastered_words"][:8])
+            msg += f"✅ **Từ đã thành thạo ({len(profile['mastered_words'])}):** {mastered_sample}\n\n"
+
+        if insights.get("top_weakness_phoneme"):
+            msg += f"⚡ **Điểm yếu #1:** /{insights['top_weakness_phoneme']}/\n"
+        if insights.get("most_improved_word"):
+            msg += f"📈 **Tiến bộ nhất:** *{insights['most_improved_word']}*\n"
+        if insights.get("hardest_pattern"):
+            msg += f"🎯 **Cấu trúc khó nhất:** \"{insights['hardest_pattern']}\"\n"
+        if insights.get("sessions_this_week") is not None:
+            msg += f"📅 **Phiên tuần này:** {insights['sessions_this_week']}\n"
+
+        if recs.get("recommended_words") or recs.get("recommended_phonemes") or recs.get("recommended_patterns"):
+            msg += "\n💡 **NÊN LUYỆN TIẾP:**\n"
+            if recs.get("recommended_words"):
+                words_list = ", ".join(f"*{w}*" for w in recs["recommended_words"][:5])
+                msg += f"  Từ: {words_list}\n"
+            if recs.get("recommended_phonemes"):
+                ph_list = ", ".join(f"/{p}/" for p in recs["recommended_phonemes"][:3])
+                msg += f"  Âm: {ph_list}\n"
+            if recs.get("recommended_patterns"):
+                pat_list = ", ".join(f"\"{p}\"" for p in recs["recommended_patterns"][:3])
+                msg += f"  Cấu trúc: {pat_list}\n"
+
+        await message.reply(msg)
+        return
+
+    # ========================================================
     # XỬ LÝ KHI USER GỬI FILE VOICE (TIN NHẮN THOẠI TỪ IPHONE)
     # ========================================================
-    # Điều kiện: Người dùng đang trong phiên học và tin nhắn có đính kèm file (Attachment)
     if user_id in user_sessions and message.attachments:
         session = user_sessions[user_id]
         
@@ -475,7 +542,11 @@ async def on_message(message):
                     phoneme_errs.append((ph, word))
             if phoneme_errs:
                 record_phoneme_errors_batch(user_id, phoneme_errs)
-                
+
+            matched_patterns = extract_patterns(session["sentence"])
+            if matched_patterns:
+                record_pattern_attempts_batch(user_id, matched_patterns, score)
+
             # Gộp kết quả chấm điểm thành 1-2 message thay vì 3-4
             progress_bar = "🟩" * session["round"] + "⬜" * (session["max_rounds"] - session["round"])
             score_block = (
