@@ -5,6 +5,7 @@ from db.connection import get_db_connection
 from db.recommendations import get_recently_recommended_ids
 from analysis.learning_memory import get_learner_profile
 from analysis.phoneme_extraction import PHONEME_WORD_MAP
+from analysis.goal_alignment import calculate_goal_alignment
 
 _WORD_PATTERN = re.compile(r"[a-zA-Z']+")
 
@@ -18,7 +19,7 @@ def get_candidate_segments(user_id, limit=50):
     cursor.execute(
         """SELECT cs.id, cs.content_item_id, cs.text, cs.position,
                   cs.difficulty_score, cs.phoneme_metadata,
-                  ci.title as item_title,
+                  ci.title as item_title, ci.tags as item_tags,
                   COUNT(cu.id) as usage_count,
                   MAX(cu.used_at) as last_used
            FROM content_segments cs
@@ -42,6 +43,10 @@ def get_candidate_segments(user_id, limit=50):
             item["phoneme_metadata"] = json.loads(item["phoneme_metadata"] or "[]")
         except (json.JSONDecodeError, TypeError):
             item["phoneme_metadata"] = []
+        try:
+            item["item_tags"] = json.loads(item.get("item_tags") or "[]")
+        except (json.JSONDecodeError, TypeError):
+            item["item_tags"] = []
         candidates.append(item)
         if len(candidates) >= limit:
             break
@@ -123,6 +128,15 @@ def score_candidate(segment, profile):
     elif abs(seg_diff - user_level) >= 3:
         score -= 3
 
+    user_goals = profile.get("learning_goals", [])
+    if user_goals:
+        segment_tags = segment.get("item_tags", [])
+        alignment = calculate_goal_alignment(segment_tags, user_goals)
+        if alignment["score"] > 0:
+            score += alignment["score"]
+            goal_label = alignment["matched_goal"].replace("_", " ")
+            reasons.append(f"aligns with {goal_label} goal")
+
     if not reasons:
         reasons.append("available content")
 
@@ -138,6 +152,9 @@ def get_recommended_content(user_id, limit=5):
     row = cursor.fetchone()
     conn.close()
     profile["user_level"] = row["current_level"] if row else 1
+
+    from db.goals import get_learning_goals
+    profile["learning_goals"] = get_learning_goals(user_id)
 
     candidates = get_candidate_segments(user_id, limit=50)
 

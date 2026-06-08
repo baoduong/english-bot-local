@@ -230,6 +230,17 @@ def init_db():
         )
     ''')
 
+    # 17. Learning goals — mục tiêu học tập của user (P4.5: Goal System)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS learning_goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            goal_type TEXT NOT NULL,
+            priority TEXT DEFAULT 'secondary',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     # Nạp dữ liệu mẫu nếu kho câu hỏi đang trống
     cursor.execute("SELECT COUNT(*) FROM sentences")
     if cursor.fetchone()[0] == 0:
