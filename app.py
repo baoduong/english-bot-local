@@ -1,5 +1,6 @@
 import discord
 import os
+import re
 import requests
 import asyncio
 import functools
@@ -15,7 +16,8 @@ from database import (get_or_create_user, get_next_sentence, update_user_progres
                       record_phoneme_errors_batch, get_weak_phonemes,
                       record_pattern_attempts_batch, get_weak_patterns,
                       pick_shadowing_item, record_shadowing_attempt,
-                      create_content_item, list_content_items, search_content, get_segments)
+                      create_content_item, list_content_items, search_content,
+                      get_segments, bulk_import)
 from ai_brain import (analyze_audio_with_whisper, analyze_single_word, send_new_word_tutorial,
                       generate_sample_audio, ERROR_TYPE_LABELS)
 from analysis.patterns import extract_patterns
@@ -23,7 +25,7 @@ from analysis.learning_memory import (get_learner_profile, get_learning_insights
                                       get_practice_recommendations)
 from analysis.drills import generate_daily_practice
 from analysis.recommendations import build_today_session, get_recommended_content
-from analysis.metrics import get_learning_progress, get_recommendation_metrics
+from analysis.metrics import get_learning_progress, get_recommendation_metrics, get_content_health
 from db.content_usage import record_usage
 from db.recommendations import record_recommendation, mark_completed, mark_skipped
 from db.shadowing import pick_content_shadowing
@@ -44,7 +46,6 @@ user_sessions = {}
 
 
 def _write_session_analytics(user_id, session):
-    """Ghi dữ liệu phiên học vào session_analytics table"""
     started_at = session.get("started_at")
     if not started_at:
         return
@@ -63,6 +64,182 @@ def _write_session_analytics(user_id, session):
     )
     conn.commit()
     conn.close()
+
+
+def _strip_markdown(text):
+    """Remove markdown formatting: # headers, * bullets, - bullets, ** bold **, ` code `."""
+    lines = text.split("\n")
+    cleaned = []
+    for line in lines:
+        line = re.sub(r"^#{1,6}\s+", "", line)
+        line = re.sub(r"^\s*[\*\-]\s+", "", line)
+        line = re.sub(r"\*\*(.+?)\*\*", r"\1", line)
+        line = re.sub(r"\*(.+?)\*", r"\1", line)
+        line = re.sub(r"`(.+?)`", r"\1", line)
+        cleaned.append(line)
+    return "\n".join(cleaned)
+
+
+def _parse_import_text(raw_text):
+    """Parse import text into list of {title, text} items.
+    Supports --- separators for multiple items and markdown stripping.
+    """
+    raw_text = _strip_markdown(raw_text)
+    blocks = re.split(r"\n---+\n", raw_text)
+    items = []
+    for block in blocks:
+        block = block.strip()
+        if not block:
+            continue
+        lines = block.split("\n", 1)
+        title = lines[0].strip()
+        body = lines[1].strip() if len(lines) > 1 else ""
+        if not body:
+            continue
+        items.append({"title": title, "text": body})
+    return items
+
+
+def _decide_round_type(session):
+    """Adaptive: chọn loại round tiếp theo dựa trên lịch sử trong phiên."""
+    history = session.get("round_history", [])
+    if not history:
+        return "sentence"
+
+    recent_fails = 0
+    for h in reversed(history[-3:]):
+        if not h["passed"]:
+            recent_fails += 1
+        else:
+            break
+
+    last_scores = [h["score"] for h in history[-3:] if h["score"] is not None]
+    avg_recent = sum(last_scores) / len(last_scores) if last_scores else 70
+
+    if recent_fails >= 2:
+        return "shadowing"
+
+    if avg_recent >= 90 and len(history) >= 2:
+        return "sentence"
+
+    last_type = history[-1]["type"] if history else "sentence"
+    rotation = ["sentence", "shadowing", "sentence", "recommend", "sentence"]
+    round_idx = len(history) % len(rotation)
+    next_type = rotation[round_idx]
+
+    if recent_fails >= 1 and next_type == "sentence":
+        return "shadowing"
+
+    return next_type
+
+
+def _should_shorten_session(session):
+    """Rút ngắn phiên nếu user đang struggle quá nhiều."""
+    history = session.get("round_history", [])
+    if len(history) < 3:
+        return False
+    last_3_scores = [h["score"] for h in history[-3:] if h["score"] is not None]
+    if last_3_scores and sum(last_3_scores) / len(last_3_scores) < 50:
+        return True
+    return False
+
+
+def _get_adaptive_difficulty(session):
+    """Trả về difficulty preference (1-5) dựa trên performance gần nhất."""
+    history = session.get("round_history", [])
+    base_diff = session.get("difficulty_pref", 2)
+
+    if len(history) < 2:
+        return base_diff
+
+    last_2 = history[-2:]
+    if all(h["passed"] and h.get("score", 0) >= 90 for h in last_2):
+        return min(5, base_diff + 1)
+    if all(not h["passed"] for h in last_2):
+        return max(1, base_diff - 1)
+
+    return base_diff
+
+
+async def _advance_to_next_round(channel, user_id, session):
+    """Adaptive: chuyển sang round tiếp theo với loại bài phù hợp."""
+    round_type = _decide_round_type(session)
+    difficulty = _get_adaptive_difficulty(session)
+    session["difficulty_pref"] = difficulty
+
+    if _should_shorten_session(session):
+        old_max = session["max_rounds"]
+        session["max_rounds"] = min(session["round"] + 1, old_max)
+        if session["max_rounds"] < old_max:
+            await channel.send("💡 Thầy thấy hôm nay hơi nặng — rút gọn phiên học để giữ năng lượng nhé!")
+
+    round_num = session["round"]
+    max_rounds = session["max_rounds"]
+
+    if round_type == "shadowing":
+        content_item = pick_content_shadowing(user_id)
+        if content_item:
+            session["mode"] = "shadowing"
+            item = {"id": content_item["id"], "text": content_item["text"], "source": "content"}
+            session["shadowing_item"] = item
+            session["sentence"] = item["text"]
+            session["new_word"] = None
+            session["fail_count"] = 0
+            session["drill_done"] = False
+            session["content_segments_used"] = session.get("content_segments_used", 0) + 1
+            await channel.send(
+                f"🎧 **Hiệp {round_num}/{max_rounds} — Shadowing**\n"
+                f"Nghe mẫu rồi đọc theo:\n"
+                f"👉 **`{item['text']}`**"
+            )
+            sample_path = f"shadow_sample_{user_id}.mp3"
+            if await generate_sample_audio(item["text"], sample_path):
+                await channel.send(file=discord.File(sample_path))
+                os.remove(sample_path)
+            return
+        round_type = "sentence"
+
+    if round_type == "recommend":
+        recs = get_recommended_content(user_id, limit=1)
+        if recs:
+            rec = recs[0]
+            rec_id = record_recommendation(user_id, rec["segment_id"], reasons=rec["reasons"], score=rec["score"])
+            session["mode"] = "recommend_practice"
+            item = {"id": rec["segment_id"], "text": rec["text"], "source": "content"}
+            session["shadowing_item"] = item
+            session["current_rec_id"] = rec_id
+            session["sentence"] = rec["text"]
+            session["new_word"] = None
+            session["fail_count"] = 0
+            session["drill_done"] = False
+            session["content_segments_used"] = session.get("content_segments_used", 0) + 1
+            reasons_str = f" ({', '.join(rec['reasons'][:2])})" if rec["reasons"] else ""
+            await channel.send(
+                f"💡 **Hiệp {round_num}/{max_rounds} — Luyện gợi ý**{reasons_str}\n"
+                f"👉 **`{rec['text']}`**"
+            )
+            sample_path = f"rec_sample_{user_id}.mp3"
+            if await generate_sample_audio(rec["text"], sample_path):
+                await channel.send(file=discord.File(sample_path))
+                os.remove(sample_path)
+            return
+        round_type = "sentence"
+
+    next_task = get_next_sentence(user_id, exclude_sentences=session.get("used_sentences", []))
+    session["mode"] = "sentence"
+    session["sentence"] = next_task["sentence"]
+    session["new_word"] = next_task["new_word"]
+    session["fail_count"] = 0
+    session["drill_done"] = False
+    session.setdefault("used_sentences", []).append(next_task["sentence"])
+
+    if next_task["new_word"]:
+        await start_keyword_drill(channel, session, next_task["sentence"], next_task["new_word"])
+    else:
+        await channel.send(
+            f"🎯 **Hiệp {round_num}/{max_rounds} — Đọc câu:**\n"
+            f"👉 **`{next_task['sentence']}`**"
+        )
 
 @client.event
 async def on_ready():
@@ -92,9 +269,9 @@ async def on_message(message):
     user_name = message.author.name
 
     # ========================================================
-    # LỆNH VÀO HỌC: !daily
+    # LỆNH VÀO HỌC: !go (adaptive session) — !daily là alias
     # ========================================================
-    if message.content.strip() == "!daily":
+    if message.content.strip() in ("!go", "!daily"):
         if user_id in user_sessions:
             if user_sessions[user_id]["mode"] == "completed":
                 await message.reply("✅ Đã hoàn thành phiên hôm nay! Gõ `!more` để thêm hiệp, hoặc chờ tới mai.")
@@ -102,46 +279,36 @@ async def on_message(message):
                 await message.reply("🔄 Bạn đang ở trong hiệp đấu rồi! Hãy nộp bài ghi âm cho câu hiện tại nhé.")
             return
 
-        await message.channel.send("🔄 Đang truy cập học bạ điện tử của bạn trên SQLite...")
-        
-        # Kiểm tra/Tạo user mới và check xem có bị đứt chuỗi Streak không
+        await message.channel.send("🔄 Đang chuẩn bị phiên học thích ứng cho bạn...")
+
         user_data = get_or_create_user(user_id, user_name)
         streak = user_data["streak"]
         user_level = user_data.get("current_level", 1)
-        
-        # Bốc câu hỏi thông minh theo thuật toán Spaced Repetition (Ưu tiên từ sai -> Từ cũ -> Từ mới)
-        next_task = get_next_sentence(user_id)
-        
-        # Khởi tạo phiên học ngày hôm nay cho user
+
         user_sessions[user_id] = {
             "round": 1,
-            "max_rounds": 3,
-            "sentence": next_task["sentence"],
-            "new_word": next_task["new_word"],
+            "max_rounds": 5,
+            "sentence": "",
+            "new_word": None,
             "fail_count": 0,
             "mode": "sentence",
             "drill_words": [],
             "drill_index": 0,
             "drill_fails": 0,
             "drill_passed": 0,
-            "drill_done": False,  # True sau khi đã drill xong 1 lần — không drill lại cùng câu
-            "used_sentences": [next_task["sentence"]],  # Track câu đã bốc trong phiên
-            "session_stats": {"passed_first_try": 0, "needed_drill": 0, "skipped": 0},  # Thống kê cuối phiên
+            "drill_done": False,
+            "used_sentences": [],
+            "session_stats": {"passed_first_try": 0, "needed_drill": 0, "skipped": 0},
             "started_at": datetime.now().isoformat(),
             "scores": [],
             "content_segments_used": 0,
+            "round_history": [],
+            "difficulty_pref": user_level,
         }
-        
-        await message.channel.send(f"🔥 **Chuỗi ngày học liên tục:** `{streak} ngày`. Giữ vững ngọn lửa nhé!")
-        
-        # Nếu câu có chứa từ mới hoặc từ sai nặng -> Drill từ khóa trước khi đọc cả câu
-        if next_task["new_word"]:
-            await start_keyword_drill(message.channel, user_sessions[user_id], next_task["sentence"], next_task["new_word"])
-        else:
-            await message.reply(
-                f"🎯 **HIỆP 1/3 - Nhấn giữ micro và đọc to câu sau:**\n"
-                f"👉 **`{next_task['sentence']}`**"
-            )
+
+        await message.channel.send(f"🔥 **Chuỗi ngày học:** `{streak} ngày` | Phiên adaptive 5 hiệp — bot sẽ tự chọn bài phù hợp!")
+
+        await _advance_to_next_round(message.channel, user_id, user_sessions[user_id])
         return
 
     # ========================================================
@@ -149,25 +316,76 @@ async def on_message(message):
     # ========================================================
     if message.content.strip() == "!help":
         await message.reply(
-            "📖 **HƯỚNG DẪN SỬ DỤNG BOT LUYỆN PHÁT ÂM**\n\n"
-            "🎯 `!daily` — Bắt đầu phiên học hôm nay (3 hiệp)\n"
-            "➕ `!more` — Thêm hiệp bonus sau khi hoàn thành (tối đa 6)\n"
-            "⏭️ `!skip` — Bỏ qua câu hiện tại, sang câu mới\n"
-            "🛑 `!stop` — Thoát phiên học giữa chừng\n"
-            "📊 `!stats` — Xem thống kê tiến trình và điểm yếu\n"
-            "📋 `!profile` — Hồ sơ học tập + điểm yếu + gợi ý\n"
-            "🎧 `!shadow` — Luyện shadowing (nghe + đọc theo)\n"
-            "📝 `!drills` — Bài tập hôm nay (tự sinh từ điểm yếu)\n"
-            "📥 `!import` — Nhập nội dung mới vào thư viện\n"
-            "📚 `!library` — Xem/tìm kiếm thư viện nội dung\n"
-            "🗓️ `!plan` — Xem kế hoạch học tập hôm nay (AI gợi ý)\n"
-            "💡 `!recommend` — Nội dung gợi ý dựa trên điểm yếu\n"
-            "📈 `!progress` — Xu hướng tiến bộ + hiệu quả gợi ý\n"
-            "📖 `!help` — Hiển thị hướng dẫn này\n\n"
-            "**Cách học:** Gõ `!daily` → Nhấn giữ micro → Đọc to câu hiện ra → Bot chấm điểm.\n"
-            "Điểm ≥ 80 để qua hiệp. Nếu kẹt, bot sẽ tách từng từ khó ra luyện riêng. 💪\n"
-            "Điểm tốt liên tục → bot tự tăng độ khó. Kẹt nhiều → bot giảm về bài dễ hơn. 🎚️"
+            "📖 **HƯỚNG DẪN SỬ DỤNG**\n\n"
+            "🎯 `!go` — Bắt đầu phiên học (bot tự chọn bài phù hợp)\n"
+            "⏭️ `!skip` — Bỏ qua bài hiện tại\n"
+            "🛑 `!stop` — Thoát phiên học\n"
+            "📊 `!me` — Xem hồ sơ + tiến bộ + gợi ý\n\n"
+            "**Cách học:** Gõ `!go` → Bot đưa bài → Ghi âm đọc → Bot chấm điểm.\n"
+            "Bot tự điều chỉnh: đọc tốt → tăng khó, kẹt nhiều → chuyển bài dễ hơn. 🎚️"
         )
+        return
+
+    # ========================================================
+    # LỆNH HỒ SƠ TỔNG HỢP: !me
+    # ========================================================
+    if message.content.strip() == "!me":
+        stats = get_user_stats(user_id)
+        profile = get_learner_profile(user_id)
+        progress = get_learning_progress(user_id)
+
+        if not stats and not profile["hard_words"]:
+            await message.reply("📊 Chưa có dữ liệu. Gõ `!go` để bắt đầu luyện nhé!")
+            return
+
+        msg = "📊 **HỒ SƠ CỦA BẠN**\n\n"
+
+        if stats:
+            level_names = {1: "🟢 Dễ", 2: "🟡 TB", 3: "🔴 Khó"}
+            level_text = level_names.get(stats.get("level", 1), "🟢 Dễ")
+            msg += f"🔥 Streak: **{stats.get('streak', 0)} ngày** | 📚 Phiên: **{stats.get('total_sessions', 0)}** | 🎚️ {level_text}\n"
+            if stats.get("avg_score"):
+                trend_icon = "📈" if stats.get("trend", 0) >= 0 else "📉"
+                msg += f"{trend_icon} Điểm TB: **{stats['avg_score']}/100**\n"
+
+        if progress["score_count"] > 0:
+            trend_icons = {"improving": "📈", "declining": "📉", "stable": "➡️"}
+            msg += f"\n**Xu hướng:** {trend_icons[progress['pronunciation_trend']]} Phát âm {progress['pronunciation_trend']}"
+            msg += f" | {trend_icons[progress['mastery_trend']]} Mastery {progress['mastery_trend']}\n"
+
+        if profile["hard_words"]:
+            words_str = ", ".join(f"*{w['word']}*" for w in profile["hard_words"][:5])
+            msg += f"\n🔴 **Từ yếu:** {words_str}\n"
+
+        if profile["hard_phonemes"]:
+            ph_str = ", ".join(f"/{p['phoneme']}/" for p in profile["hard_phonemes"][:4])
+            msg += f"🔤 **Âm yếu:** {ph_str}\n"
+
+        if profile["hard_patterns"]:
+            pat_str = ", ".join(f"\"{p['pattern']}\"" for p in profile["hard_patterns"][:3])
+            msg += f"🗣️ **Cấu trúc cần luyện:** {pat_str}\n"
+
+        if progress.get("phoneme_improvement"):
+            msg += f"\n✅ **Tiến bộ gần đây:** {', '.join(f'/{p}/' for p in progress['phoneme_improvement'][:3])}\n"
+
+        if profile["mastered_words"]:
+            msg += f"🏆 **Đã thành thạo:** {len(profile['mastered_words'])} từ\n"
+
+        recs = get_practice_recommendations(user_id, limit=3)
+        if recs.get("recommended_words") or recs.get("recommended_phonemes"):
+            msg += "\n💡 **Nên tập trung:**"
+            if recs.get("recommended_words"):
+                msg += f" Từ: {', '.join(f'*{w}*' for w in recs['recommended_words'][:3])}"
+            if recs.get("recommended_phonemes"):
+                msg += f" | Âm: {', '.join(f'/{p}/' for p in recs['recommended_phonemes'][:2])}"
+            msg += "\n"
+
+        health = get_content_health()
+        if health["total_segments"] > 0:
+            msg += f"\n📦 **Kho bài:** {health['total_segments']} segments | ~{health['coverage_days']} ngày còn lại\n"
+
+        msg += "\n💡 Gõ `!go` để luyện tập!"
+        await message.reply(msg)
         return
 
     # ========================================================
@@ -175,20 +393,25 @@ async def on_message(message):
     # ========================================================
     if message.content.strip() == "!skip":
         if user_id not in user_sessions:
-            await message.reply("⚠️ Bạn chưa bắt đầu phiên học. Gõ `!daily` để vào học nhé!")
+            await message.reply("⚠️ Bạn chưa bắt đầu phiên học. Gõ `!go` để vào học nhé!")
             return
         
         session = user_sessions[user_id]
         
-        # Đánh dấu câu hiện tại là fail và cất vào sổ đen nếu có từ khóa
-        update_sentence_progress(user_id, session["sentence"], success=False)
-        if session["new_word"]:
-            save_failed_word(user_id, session["new_word"])
+        if session["mode"] == "sentence":
+            update_sentence_progress(user_id, session["sentence"], success=False)
+            if session["new_word"]:
+                save_failed_word(user_id, session["new_word"])
         session["session_stats"]["skipped"] += 1
+
+        session.setdefault("round_history", []).append({
+            "type": session.get("mode", "sentence"),
+            "passed": False,
+            "score": None,
+        })
         
         session["round"] += 1
         session["fail_count"] = 0
-        session["mode"] = "sentence"
         
         if session["round"] > session["max_rounds"]:
             new_streak = update_user_progress(user_id, status="completed")
@@ -202,15 +425,7 @@ async def on_message(message):
             )
             session["mode"] = "completed"
         else:
-            next_task = get_next_sentence(user_id, exclude_sentences=session["used_sentences"])
-            session["sentence"] = next_task["sentence"]
-            session["new_word"] = next_task["new_word"]
-            session["used_sentences"].append(next_task["sentence"])
-            session["drill_done"] = False
-            if next_task["new_word"]:
-                await start_keyword_drill(message.channel, session, next_task["sentence"], next_task["new_word"])
-            else:
-                await message.channel.send(f"👉 **`{session['sentence']}`**")
+            await _advance_to_next_round(message.channel, user_id, session)
         return
 
     # ========================================================
@@ -232,7 +447,7 @@ async def on_message(message):
             streak_msg = "⚠️ Chưa hoàn thành hiệp nào nên không tính streak."
         
         del user_sessions[user_id]
-        await message.reply(f"🛑 **Đã thoát phiên học.**\n{streak_msg}\nGõ `!daily` khi muốn quay lại nhé!")
+        await message.reply(f"🛑 **Đã thoát phiên học.**\n{streak_msg}\nGõ `!go` khi muốn quay lại nhé!")
         return
 
     # ========================================================
@@ -240,28 +455,20 @@ async def on_message(message):
     # ========================================================
     if message.content.strip() == "!more":
         if user_id not in user_sessions or user_sessions[user_id]["mode"] != "completed":
-            await message.reply("⚠️ Bạn cần hoàn thành phiên học trước (gõ `!daily` để bắt đầu).")
+            await message.reply("⚠️ Bạn cần hoàn thành phiên học trước (gõ `!go` để bắt đầu).")
             return
         session = user_sessions[user_id]
-        if session["max_rounds"] >= 6:
-            await message.reply("🛑 Đã đạt tối đa **6 hiệp** cho 1 phiên. Nghỉ ngơi rồi quay lại vào ngày mai nhé! 💤")
+        if session["max_rounds"] >= 8:
+            await message.reply("🛑 Đã đạt tối đa **8 hiệp** cho 1 phiên. Nghỉ ngơi rồi quay lại vào ngày mai nhé! 💤")
             del user_sessions[user_id]
             return
         session["max_rounds"] += 1
-        next_task = get_next_sentence(user_id, exclude_sentences=session["used_sentences"])
-        session["sentence"] = next_task["sentence"]
-        session["new_word"] = next_task["new_word"]
-        session["used_sentences"].append(next_task["sentence"])
+        session["round"] = session["max_rounds"]
         session["fail_count"] = 0
-        session["mode"] = "sentence"
-        session["drill_done"] = False
         await message.channel.send(
-            f"💪 **HIỆP BONUS {session['round']}/{session['max_rounds']}!** Tinh thần chiến đấu cao!\n"
+            f"💪 **HIỆP BONUS {session['round']}/{session['max_rounds']}!** Tinh thần chiến đấu cao!"
         )
-        if next_task["new_word"]:
-            await start_keyword_drill(message.channel, session, next_task["sentence"], next_task["new_word"])
-        else:
-            await message.channel.send(f"👉 **`{session['sentence']}`**")
+        await _advance_to_next_round(message.channel, user_id, session)
         return
 
     # ========================================================
@@ -270,7 +477,7 @@ async def on_message(message):
     if message.content.strip() == "!stats":
         stats = get_user_stats(user_id)
         if not stats:
-            await message.reply("📊 Chưa có dữ liệu. Gõ `!daily` để bắt đầu luyện nhé!")
+            await message.reply("📊 Chưa có dữ liệu. Gõ `!go` để bắt đầu luyện nhé!")
             return
         
         level_names = {1: "🟢 Dễ", 2: "🟡 Trung bình", 3: "🔴 Khó"}
@@ -441,7 +648,7 @@ async def on_message(message):
         practice = generate_daily_practice(user_id)
 
         if not practice["phoneme_drills"] and not practice["word_drills"] and not practice["pattern_drills"]:
-            await message.reply("📋 Chưa có đủ dữ liệu để tạo bài tập. Luyện thêm vài phiên `!daily` rồi quay lại!")
+            await message.reply("📋 Chưa có đủ dữ liệu để tạo bài tập. Luyện thêm vài phiên `!go` rồi quay lại!")
             return
 
         msg = "📝 **BÀI TẬP HÔM NAY**\n\n"
@@ -467,7 +674,7 @@ async def on_message(message):
                     msg += f"    → {s}\n"
             msg += "\n"
 
-        msg += "💡 Gõ `!shadow` để luyện shadowing, hoặc `!daily` để vào phiên chấm điểm!"
+        msg += "💡 Gõ `!shadow` để luyện shadowing, hoặc `!go` để vào phiên chấm điểm!"
         await message.reply(msg)
         return
 
@@ -476,29 +683,58 @@ async def on_message(message):
     # ========================================================
     if message.content.strip().startswith("!import"):
         raw = message.content[len("!import"):].strip()
+
+        if message.attachments:
+            txt_files = [a for a in message.attachments if a.filename.endswith(".txt")]
+            if txt_files:
+                total_items = 0
+                total_segs = 0
+                for att in txt_files:
+                    file_bytes = await att.read()
+                    file_text = file_bytes.decode("utf-8", errors="ignore")
+                    items = _parse_import_text(file_text)
+                    if items:
+                        results = bulk_import(items)
+                        total_items += len(results)
+                        total_segs += sum(r["segment_count"] for r in results)
+                await message.reply(
+                    f"✅ **Đã nhập từ file!**\n"
+                    f"📄 {total_items} bài | 🔢 {total_segs} segments"
+                )
+                return
+
         if not raw:
             await message.reply(
                 "📥 **Cách dùng `!import`:**\n"
-                "```\n!import Tiêu đề bài\nNội dung câu thứ nhất. Câu thứ hai.\nĐoạn tiếp theo ở đây.\n```\n"
-                "Bot sẽ tự động tách thành từng câu (segment)."
+                "```\n!import Tiêu đề bài\nNội dung câu 1. Câu 2.\nĐoạn tiếp theo.\n```\n"
+                "**Nhập nhiều bài cùng lúc** — dùng `---` ngăn cách:\n"
+                "```\n!import Bài 1\nNội dung bài 1.\n---\nBài 2\nNội dung bài 2.\n```\n"
+                "**Đính kèm file `.txt`** — bot tự đọc và nhập.\n"
+                "Markdown (`#`, `*`, `-` đầu dòng) sẽ tự động bị loại bỏ."
             )
             return
 
-        lines = raw.split("\n", 1)
-        title = lines[0].strip()
-        body = lines[1].strip() if len(lines) > 1 else ""
-
-        if not body:
-            await message.reply("⚠️ Cần có nội dung sau tiêu đề. Viết tiêu đề trên dòng đầu, nội dung từ dòng 2.")
+        items = _parse_import_text(raw)
+        if not items:
+            await message.reply("⚠️ Không tìm được nội dung hợp lệ. Mỗi bài cần tiêu đề dòng 1 và nội dung từ dòng 2.")
             return
 
-        result = create_content_item(title=title, text=body)
-        await message.reply(
-            f"✅ **Đã nhập thành công!**\n"
-            f"📄 *{title}*\n"
-            f"🔢 Tách được **{result['segment_count']}** câu (segments)\n"
-            f"🆔 ID: `{result['item_id']}`"
-        )
+        results = bulk_import(items)
+        total_segs = sum(r["segment_count"] for r in results)
+
+        if len(results) == 1:
+            r = results[0]
+            await message.reply(
+                f"✅ **Đã nhập thành công!**\n"
+                f"📄 *{items[0]['title']}*\n"
+                f"🔢 Tách được **{r['segment_count']}** câu (segments)\n"
+                f"🆔 ID: `{r['item_id']}`"
+            )
+        else:
+            await message.reply(
+                f"✅ **Đã nhập {len(results)} bài!**\n"
+                f"🔢 Tổng cộng **{total_segs}** segments"
+            )
         return
 
     # ========================================================
@@ -565,7 +801,7 @@ async def on_message(message):
             msg += "\n"
 
         if not session_plan["shadowing"] and not session_plan["review_words"] and not session_plan["recommended_content"]:
-            msg += "📭 Chưa có đủ dữ liệu. Gõ `!daily` để bắt đầu luyện, `!import` để thêm nội dung!\n"
+            msg += "📭 Chưa có đủ dữ liệu. Gõ `!go` để bắt đầu luyện, `!import` để thêm nội dung!\n"
 
         msg += "💡 Gõ `!shadow` để luyện shadowing, `!drills` cho bài tập, `!recommend` để xem gợi ý chi tiết."
         await message.reply(msg)
@@ -638,7 +874,7 @@ async def on_message(message):
         rec_metrics = get_recommendation_metrics(user_id)
 
         if progress["score_count"] == 0 and rec_metrics["total"] == 0:
-            await message.reply("📈 Chưa có dữ liệu tiến bộ. Luyện thêm vài phiên `!daily` rồi quay lại!")
+            await message.reply("📈 Chưa có dữ liệu tiến bộ. Luyện thêm vài phiên `!go` rồi quay lại!")
             return
 
         trend_icons = {"improving": "📈", "declining": "📉", "stable": "➡️"}
@@ -754,6 +990,7 @@ async def on_message(message):
                 if item.get("source") == "content":
                     record_usage(item["id"], "shadowing")
 
+                session["scores"].append(score)
                 result_msg = (
                     f"🎧 **KẾT QUẢ SHADOWING** — **{score}/100** điểm\n"
                     f"```ansi\n{ansi_feedback}\n```"
@@ -761,15 +998,36 @@ async def on_message(message):
                 if error_details and score < 100:
                     result_msg += f"\n{error_details}"
 
+                is_adaptive = "round_history" in session and session["max_rounds"] > 0
+
                 if score >= 80:
-                    result_msg += "\n\n✅ Tốt lắm! Gõ `!shadow` để thử câu khác, hoặc `!daily` để vào phiên chính."
+                    if is_adaptive:
+                        result_msg += "\n\n✅ Tốt lắm!"
+                        await message.reply(result_msg)
+                        session.setdefault("round_history", []).append({
+                            "type": "shadowing", "passed": True, "score": score,
+                        })
+                        session["round"] += 1
+                        if session["round"] > session["max_rounds"]:
+                            new_streak = update_user_progress(user_id, status="completed")
+                            increment_total_sessions(user_id)
+                            _write_session_analytics(user_id, session)
+                            stats = session["session_stats"]
+                            await message.channel.send(
+                                f"🏆 **HOÀN THÀNH!** 🔥 Chuỗi: `{new_streak} ngày`\n"
+                                f"📊 Pass: {stats['passed_first_try']} | Drill: {stats['needed_drill']} | Skip: {stats['skipped']}\n"
+                                f"💡 Gõ `!more` để thêm hiệp bonus!"
+                            )
+                            session["mode"] = "completed"
+                        else:
+                            await _advance_to_next_round(message.channel, user_id, session)
+                    else:
+                        result_msg += "\n\n✅ Tốt lắm! Gõ `!shadow` để thử câu khác, hoặc `!go` để vào phiên chính."
+                        await message.reply(result_msg)
+                        del user_sessions[user_id]
                 else:
-                    result_msg += "\n\n🔄 Chưa đạt 80 — nghe lại mẫu rồi thử lần nữa! Hoặc gõ `!shadow` để đổi câu."
-
-                await message.reply(result_msg)
-
-                if score >= 80:
-                    del user_sessions[user_id]
+                    result_msg += "\n\n🔄 Chưa đạt 80 — nghe lại mẫu rồi thử lần nữa! Hoặc gõ `!skip` để bỏ qua."
+                    await message.reply(result_msg)
                 return
 
             # ====================================================
@@ -785,6 +1043,7 @@ async def on_message(message):
                     os.remove(temp_audio_path)
 
                 record_usage(item["id"], "recommend_practice")
+                session["scores"].append(score)
 
                 result_msg = (
                     f"💡 **KẾT QUẢ LUYỆN GỢI Ý** — **{score}/100** điểm\n"
@@ -793,15 +1052,38 @@ async def on_message(message):
                 if error_details and score < 100:
                     result_msg += f"\n{error_details}"
 
+                is_adaptive = "round_history" in session and session["max_rounds"] > 0
+
                 if score >= 80:
                     rec_id = session.get("current_rec_id")
                     if rec_id:
                         mark_completed(rec_id, score)
-                    result_msg += "\n\n✅ Xuất sắc! Gõ `!recommend` để nhận gợi ý tiếp, hoặc `!daily` để vào phiên chính."
-                    await message.reply(result_msg)
-                    del user_sessions[user_id]
+                    if is_adaptive:
+                        result_msg += "\n\n✅ Xuất sắc!"
+                        await message.reply(result_msg)
+                        session.setdefault("round_history", []).append({
+                            "type": "recommend", "passed": True, "score": score,
+                        })
+                        session["round"] += 1
+                        if session["round"] > session["max_rounds"]:
+                            new_streak = update_user_progress(user_id, status="completed")
+                            increment_total_sessions(user_id)
+                            _write_session_analytics(user_id, session)
+                            stats = session["session_stats"]
+                            await message.channel.send(
+                                f"🏆 **HOÀN THÀNH!** 🔥 Chuỗi: `{new_streak} ngày`\n"
+                                f"📊 Pass: {stats['passed_first_try']} | Drill: {stats['needed_drill']} | Skip: {stats['skipped']}\n"
+                                f"💡 Gõ `!more` để thêm hiệp bonus!"
+                            )
+                            session["mode"] = "completed"
+                        else:
+                            await _advance_to_next_round(message.channel, user_id, session)
+                    else:
+                        result_msg += "\n\n✅ Xuất sắc! Gõ `!recommend` để nhận gợi ý tiếp, hoặc `!go` để vào phiên chính."
+                        await message.reply(result_msg)
+                        del user_sessions[user_id]
                 else:
-                    result_msg += "\n\n🔄 Chưa đạt 80. Thử lại hoặc `!recommend skip` để bỏ qua."
+                    result_msg += "\n\n🔄 Chưa đạt 80. Thử lại hoặc gõ `!skip` để bỏ qua."
                     await message.reply(result_msg)
                 return
 
@@ -875,11 +1157,13 @@ async def on_message(message):
                             f"👉 **`{session['sentence']}`**"
                         )
                     else:
-                        # Quá nhiều từ bị kẹt → không ép đọc lại câu, đổi sang câu khác
                         update_sentence_progress(user_id, session["sentence"], success=False)
                         if session["new_word"]:
                             save_failed_word(user_id, session["new_word"])
 
+                        session.setdefault("round_history", []).append({
+                            "type": "sentence", "passed": False, "score": None,
+                        })
                         session["round"] += 1
                         session["fail_count"] = 0
 
@@ -900,15 +1184,7 @@ async def on_message(message):
                             )
                             session["mode"] = "completed"
                         else:
-                            next_task = get_next_sentence(user_id, exclude_sentences=session["used_sentences"])
-                            session["sentence"] = next_task["sentence"]
-                            session["new_word"] = next_task["new_word"]
-                            session["used_sentences"].append(next_task["sentence"])
-                            await message.channel.send(f"⏭️ Sang **HIỆP {session['round']}/{session['max_rounds']}** với câu mới:")
-                            if next_task["new_word"]:
-                                await start_keyword_drill(message.channel, session, next_task["sentence"], next_task["new_word"])
-                            else:
-                                await message.channel.send(f"👉 **`{session['sentence']}`**")
+                            await _advance_to_next_round(message.channel, user_id, session)
                 return
 
             # ====================================================
@@ -974,8 +1250,11 @@ async def on_message(message):
                 session["round"] += 1
                 session["fail_count"] = 0
                 
+                session.setdefault("round_history", []).append({
+                    "type": "sentence", "passed": True, "score": score,
+                })
+
                 if session["round"] > session["max_rounds"]:
-                    # HOÀN THÀNH ĐỦ HIỆP CỦA NGÀY — hiển thị tổng kết phiên
                     new_streak = update_user_progress(user_id, status="completed")
                     increment_total_sessions(user_id)
                     _write_session_analytics(user_id, session)
@@ -991,19 +1270,7 @@ async def on_message(message):
                     )
                     session["mode"] = "completed"
                 else:
-                    # BƯỚC SANG HIỆP TIẾP THEO
-                    next_task = get_next_sentence(user_id, exclude_sentences=session["used_sentences"])
-                    session["sentence"] = next_task["sentence"]
-                    session["new_word"] = next_task["new_word"]
-                    session["used_sentences"].append(next_task["sentence"])
-                    
-                    if next_task["new_word"]:
-                        await start_keyword_drill(message.channel, session, next_task["sentence"], next_task["new_word"])
-                    else:
-                        await message.channel.send(
-                            f"💪 Làm tốt lắm! Tiếp tục sang **HIỆP {session['round']}/{session['max_rounds']}**:\n"
-                            f"👉 **`{session['sentence']}`**"
-                        )
+                    await _advance_to_next_round(message.channel, user_id, session)
             else:
                 # PHÁT ÂM CHƯA ĐẠT CHUẨN (<80 điểm)
                 session["fail_count"] += 1
@@ -1014,6 +1281,9 @@ async def on_message(message):
                     if session["new_word"]:
                         save_failed_word(user_id, session["new_word"])
                     
+                    session.setdefault("round_history", []).append({
+                        "type": "sentence", "passed": False, "score": score,
+                    })
                     session["round"] += 1
                     session["fail_count"] = 0
                     session["drill_done"] = False
@@ -1036,22 +1306,16 @@ async def on_message(message):
                         )
                         session["mode"] = "completed"
                     else:
-                        next_task = get_next_sentence(user_id, exclude_sentences=session["used_sentences"])
-                        session["sentence"] = next_task["sentence"]
-                        session["new_word"] = next_task["new_word"]
-                        session["used_sentences"].append(next_task["sentence"])
-                        await message.channel.send(f"⏭️ Sang **HIỆP {session['round']}/{session['max_rounds']}** với câu mới:")
-                        if next_task["new_word"]:
-                            await start_keyword_drill(message.channel, session, next_task["sentence"], next_task["new_word"])
-                        else:
-                            await message.channel.send(f"👉 **`{session['sentence']}`**")
+                        await _advance_to_next_round(message.channel, user_id, session)
 
                 elif session["fail_count"] >= 3:
-                    # 🟥 THẤT BẠI QUÁ 3 LẦN (chưa từng drill) -> ĐỔI CÂU
                     update_sentence_progress(user_id, session["sentence"], success=False)
                     if session["new_word"]:
                         save_failed_word(user_id, session["new_word"])
                     
+                    session.setdefault("round_history", []).append({
+                        "type": "sentence", "passed": False, "score": score,
+                    })
                     session["round"] += 1
                     session["fail_count"] = 0
                     session["drill_done"] = False
@@ -1074,15 +1338,7 @@ async def on_message(message):
                         )
                         session["mode"] = "completed"
                     else:
-                        next_task = get_next_sentence(user_id, exclude_sentences=session["used_sentences"])
-                        session["sentence"] = next_task["sentence"]
-                        session["new_word"] = next_task["new_word"]
-                        session["used_sentences"].append(next_task["sentence"])
-                        await message.channel.send(f"⏭️ Hãy bước sang **HIỆP {session['round']}/{session['max_rounds']}** với một thử thách mới tươi mới hơn:")
-                        if next_task["new_word"]:
-                            await start_keyword_drill(message.channel, session, next_task["sentence"], next_task["new_word"])
-                        else:
-                            await message.channel.send(f"👉 **`{session['sentence']}`**")
+                        await _advance_to_next_round(message.channel, user_id, session)
 
                 elif session["fail_count"] == 2 and problem_words and not session["drill_done"]:
                     # 🟡 SAI LẦN 2 VÀ CÓ TỪ KHÓ -> KÍCH HOẠT WORD DRILL MODE

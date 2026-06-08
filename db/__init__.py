@@ -22,3 +22,22 @@ from db.recommendations import (record_recommendation, mark_completed, mark_skip
 
 init_db()
 seed_shadowing_items()
+
+
+def _seed_content_if_empty():
+    """Auto-seed content library on first run if content_items table is empty."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) as n FROM content_items")
+    count = cursor.fetchone()["n"]
+    conn.close()
+
+    if count == 0:
+        from seed_content import get_seed_items
+        items = get_seed_items()
+        results = bulk_import(items)
+        total_segments = sum(r["segment_count"] for r in results)
+        print(f"[seed] Imported {len(results)} content items ({total_segments} segments)")
+
+
+_seed_content_if_empty()

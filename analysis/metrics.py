@@ -352,3 +352,36 @@ def export_learning_profile(user_id):
         "sessions": session_stats,
         "content_effectiveness": effectiveness,
     }
+
+
+def get_content_health():
+    """Content supply metrics: how much content exists and how long it will last.
+    Burn rate: ~2.5 segments/session (5 rounds × ~50% content-based).
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT COUNT(*) as n FROM content_items")
+    total_items = cursor.fetchone()["n"]
+
+    cursor.execute("SELECT COUNT(*) as n FROM content_segments")
+    total_segments = cursor.fetchone()["n"]
+
+    cursor.execute(
+        """SELECT COUNT(DISTINCT segment_id) as n FROM content_usage"""
+    )
+    segments_used = cursor.fetchone()["n"]
+
+    conn.close()
+
+    unused_segments = total_segments - segments_used
+    burn_rate = 2.5
+    coverage_days = round(unused_segments / burn_rate, 1) if burn_rate > 0 else 0
+
+    return {
+        "total_items": total_items,
+        "total_segments": total_segments,
+        "segments_used": segments_used,
+        "unused_segments": unused_segments,
+        "coverage_days": coverage_days,
+    }

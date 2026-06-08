@@ -13,4 +13,4 @@ from analysis.recommendations import (get_candidate_segments, score_candidate,
 from analysis.metrics import (get_recommendation_metrics, get_learning_progress,
                               get_session_analytics, get_content_effectiveness,
                               audit_recommendation_quality, validate_session_quality,
-                              export_learning_profile)
+                              export_learning_profile, get_content_health)
