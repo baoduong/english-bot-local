@@ -3,6 +3,7 @@ import os
 import requests
 import asyncio
 import functools
+from datetime import datetime
 
 from dotenv import load_dotenv
 # Import chuẩn xác các hàm xử lý từ 2 file vệ tinh đã viết
@@ -21,6 +22,12 @@ from analysis.patterns import extract_patterns
 from analysis.learning_memory import (get_learner_profile, get_learning_insights,
                                       get_practice_recommendations)
 from analysis.drills import generate_daily_practice
+from analysis.recommendations import build_today_session, get_recommended_content
+from analysis.metrics import get_learning_progress, get_recommendation_metrics
+from db.content_usage import record_usage
+from db.recommendations import record_recommendation, mark_completed, mark_skipped
+from db.shadowing import pick_content_shadowing
+from db.connection import get_db_connection
 
 load_dotenv()
 
@@ -34,6 +41,28 @@ client = discord.Client(intents=intents)
 # 2. Bộ nhớ đệm lưu trạng thái học trong ngày của các User
 # Cấu trúc: { user_id: { "round": 1, "sentence": "...", "new_word": "...", "fail_count": 0 } }
 user_sessions = {}
+
+
+def _write_session_analytics(user_id, session):
+    """Ghi dữ liệu phiên học vào session_analytics table"""
+    started_at = session.get("started_at")
+    if not started_at:
+        return
+    scores = session.get("scores", [])
+    avg_score = round(sum(scores) / len(scores), 1) if scores else 0
+    rounds_completed = session["round"] - 1
+    content_used = session.get("content_segments_used", 0)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """INSERT INTO session_analytics
+           (user_id, started_at, completed_at, rounds_completed, rounds_total, avg_score, content_segments_used)
+           VALUES (?, ?, datetime('now'), ?, ?, ?, ?)""",
+        (user_id, started_at, rounds_completed, session["max_rounds"], avg_score, content_used)
+    )
+    conn.commit()
+    conn.close()
 
 @client.event
 async def on_ready():
@@ -97,7 +126,10 @@ async def on_message(message):
             "drill_passed": 0,
             "drill_done": False,  # True sau khi đã drill xong 1 lần — không drill lại cùng câu
             "used_sentences": [next_task["sentence"]],  # Track câu đã bốc trong phiên
-            "session_stats": {"passed_first_try": 0, "needed_drill": 0, "skipped": 0}  # Thống kê cuối phiên
+            "session_stats": {"passed_first_try": 0, "needed_drill": 0, "skipped": 0},  # Thống kê cuối phiên
+            "started_at": datetime.now().isoformat(),
+            "scores": [],
+            "content_segments_used": 0,
         }
         
         await message.channel.send(f"🔥 **Chuỗi ngày học liên tục:** `{streak} ngày`. Giữ vững ngọn lửa nhé!")
@@ -128,6 +160,9 @@ async def on_message(message):
             "📝 `!drills` — Bài tập hôm nay (tự sinh từ điểm yếu)\n"
             "📥 `!import` — Nhập nội dung mới vào thư viện\n"
             "📚 `!library` — Xem/tìm kiếm thư viện nội dung\n"
+            "🗓️ `!plan` — Xem kế hoạch học tập hôm nay (AI gợi ý)\n"
+            "💡 `!recommend` — Nội dung gợi ý dựa trên điểm yếu\n"
+            "📈 `!progress` — Xu hướng tiến bộ + hiệu quả gợi ý\n"
             "📖 `!help` — Hiển thị hướng dẫn này\n\n"
             "**Cách học:** Gõ `!daily` → Nhấn giữ micro → Đọc to câu hiện ra → Bot chấm điểm.\n"
             "Điểm ≥ 80 để qua hiệp. Nếu kẹt, bot sẽ tách từng từ khó ra luyện riêng. 💪\n"
@@ -158,6 +193,7 @@ async def on_message(message):
         if session["round"] > session["max_rounds"]:
             new_streak = update_user_progress(user_id, status="completed")
             increment_total_sessions(user_id)
+            _write_session_analytics(user_id, session)
             stats = session["session_stats"]
             await message.channel.send(
                 f"🏆 **HOÀN THÀNH PHIÊN HỌC!** 🔥 Chuỗi: `{new_streak} ngày`\n"
@@ -190,6 +226,7 @@ async def on_message(message):
         
         if completed_rounds > 0:
             new_streak = update_user_progress(user_id, status="completed")
+            _write_session_analytics(user_id, session)
             streak_msg = f"🔥 Chuỗi: `{new_streak} ngày` (vẫn được tính vì đã hoàn thành {completed_rounds} hiệp)"
         else:
             streak_msg = "⚠️ Chưa hoàn thành hiệp nào nên không tính streak."
@@ -352,9 +389,17 @@ async def on_message(message):
     # LỆNH SHADOWING: !shadow
     # ========================================================
     if message.content.strip() == "!shadow":
-        item = pick_shadowing_item(user_id)
+        content_item = pick_content_shadowing(user_id)
+        if content_item:
+            item = {"id": content_item["id"], "text": content_item["text"], "source": "content"}
+        else:
+            item = pick_shadowing_item(user_id)
+            if item:
+                item = dict(item)
+                item["source"] = "builtin"
+
         if not item:
-            await message.reply("📭 Chưa có câu shadowing nào trong hệ thống. Liên hệ admin để thêm nhé!")
+            await message.reply("📭 Chưa có câu shadowing nào. Gõ `!import` để nhập nội dung, hoặc liên hệ admin!")
             return
 
         user_sessions[user_id] = {
@@ -372,10 +417,14 @@ async def on_message(message):
             "drill_done": False,
             "used_sentences": [],
             "session_stats": {"passed_first_try": 0, "needed_drill": 0, "skipped": 0},
+            "started_at": datetime.now().isoformat(),
+            "scores": [],
+            "content_segments_used": 0,
         }
 
+        source_label = " (từ thư viện)" if item.get("source") == "content" else ""
         await message.channel.send(
-            f"🎧 **SHADOWING MODE**\n\n"
+            f"🎧 **SHADOWING MODE**{source_label}\n\n"
             f"👉 **`{item['text']}`**\n\n"
             f"Nghe mẫu bên dưới, rồi ghi âm đọc theo nhé! 🎤"
         )
@@ -484,6 +533,141 @@ async def on_message(message):
         return
 
     # ========================================================
+    # LỆNH KẾ HOẠCH HÔM NAY: !plan
+    # ========================================================
+    if message.content.strip() == "!plan":
+        session_plan = build_today_session(user_id)
+
+        msg = "🗓️ **KẾ HOẠCH HỌC HÔM NAY**\n\n"
+
+        if session_plan["shadowing"]:
+            msg += "🎧 **Shadowing (nghe + đọc theo):**\n"
+            for i, s in enumerate(session_plan["shadowing"], 1):
+                reasons_str = ", ".join(s["reasons"][:2]) if s["reasons"] else ""
+                msg += f"  {i}. \"{s['text'][:60]}{'...' if len(s['text']) > 60 else ''}\" (diff={s['difficulty_score']})"
+                if reasons_str:
+                    msg += f" — *{reasons_str}*"
+                msg += "\n"
+            msg += "\n"
+
+        if session_plan["review_words"]:
+            words_list = ", ".join(f"*{w}*" for w in session_plan["review_words"])
+            msg += f"📝 **Từ cần ôn:** {words_list}\n\n"
+
+        if session_plan["review_phonemes"]:
+            ph_list = ", ".join(f"/{p}/" for p in session_plan["review_phonemes"])
+            msg += f"🔤 **Âm cần luyện:** {ph_list}\n\n"
+
+        if session_plan["recommended_content"]:
+            msg += "💡 **Nội dung gợi ý:**\n"
+            for i, rec in enumerate(session_plan["recommended_content"][:5], 1):
+                msg += f"  {i}. \"{rec['text'][:50]}{'...' if len(rec['text']) > 50 else ''}\" (score={rec['score']})\n"
+            msg += "\n"
+
+        if not session_plan["shadowing"] and not session_plan["review_words"] and not session_plan["recommended_content"]:
+            msg += "📭 Chưa có đủ dữ liệu. Gõ `!daily` để bắt đầu luyện, `!import` để thêm nội dung!\n"
+
+        msg += "💡 Gõ `!shadow` để luyện shadowing, `!drills` cho bài tập, `!recommend` để xem gợi ý chi tiết."
+        await message.reply(msg)
+        return
+
+    # ========================================================
+    # LỆNH GỢI Ý NỘI DUNG: !recommend
+    # ========================================================
+    if message.content.strip().startswith("!recommend"):
+        args = message.content[len("!recommend"):].strip()
+
+        if args == "skip" and user_id in user_sessions and user_sessions[user_id].get("mode") == "recommend_practice":
+            session = user_sessions[user_id]
+            rec_id = session.get("current_rec_id")
+            if rec_id:
+                mark_skipped(rec_id)
+            del user_sessions[user_id]
+            await message.reply("⏭️ Đã bỏ qua. Gõ `!recommend` để xem gợi ý tiếp theo.")
+            return
+
+        recommendations = get_recommended_content(user_id, limit=3)
+        if not recommendations:
+            await message.reply("📭 Chưa có nội dung để gợi ý. Gõ `!import` để nhập nội dung trước!")
+            return
+
+        rec = recommendations[0]
+        rec_id = record_recommendation(user_id, rec["segment_id"], reasons=rec["reasons"], score=rec["score"])
+
+        msg = "💡 **GỢI Ý LUYỆN TẬP**\n\n"
+        msg += f"👉 **\"{rec['text']}\"**\n"
+        msg += f"📊 Độ khó: {rec['difficulty_score']}/5 | Score: {rec['score']}\n"
+        if rec["reasons"]:
+            msg += f"💬 Lý do: {', '.join(rec['reasons'][:3])}\n"
+        msg += f"\n🎤 Ghi âm đọc câu trên để luyện tập! Hoặc `!recommend skip` để bỏ qua."
+
+        user_sessions[user_id] = {
+            "mode": "recommend_practice",
+            "shadowing_item": {"id": rec["segment_id"], "text": rec["text"], "source": "content"},
+            "current_rec_id": rec_id,
+            "round": 0,
+            "max_rounds": 0,
+            "sentence": rec["text"],
+            "new_word": None,
+            "fail_count": 0,
+            "drill_words": [],
+            "drill_index": 0,
+            "drill_fails": 0,
+            "drill_passed": 0,
+            "drill_done": False,
+            "used_sentences": [],
+            "session_stats": {"passed_first_try": 0, "needed_drill": 0, "skipped": 0},
+            "started_at": datetime.now().isoformat(),
+            "scores": [],
+            "content_segments_used": 0,
+        }
+
+        await message.reply(msg)
+
+        sample_path = f"recommend_sample_{user_id}.mp3"
+        if await generate_sample_audio(rec["text"], sample_path):
+            await message.channel.send(file=discord.File(sample_path))
+            os.remove(sample_path)
+        return
+
+    # ========================================================
+    # LỆNH XEM TIẾN BỘ: !progress
+    # ========================================================
+    if message.content.strip() == "!progress":
+        progress = get_learning_progress(user_id)
+        rec_metrics = get_recommendation_metrics(user_id)
+
+        if progress["score_count"] == 0 and rec_metrics["total"] == 0:
+            await message.reply("📈 Chưa có dữ liệu tiến bộ. Luyện thêm vài phiên `!daily` rồi quay lại!")
+            return
+
+        trend_icons = {"improving": "📈", "declining": "📉", "stable": "➡️"}
+
+        msg = "📈 **TIẾN BỘ CỦA BẠN**\n\n"
+
+        if progress["score_count"] > 0:
+            msg += f"{trend_icons[progress['pronunciation_trend']]} Phát âm: **{progress['pronunciation_trend']}** (TB: {progress['avg_score']}/100, {progress['score_count']} lần chấm)\n"
+            msg += f"{trend_icons[progress['mastery_trend']]} Mastery: **{progress['mastery_trend']}**\n\n"
+
+        if progress["phoneme_improvement"]:
+            msg += f"✅ Âm tiến bộ: {', '.join(f'/{p}/' for p in progress['phoneme_improvement'][:5])}\n"
+        if progress["phoneme_struggling"]:
+            msg += f"🔴 Âm còn yếu: {', '.join(f'/{p}/' for p in progress['phoneme_struggling'][:5])}\n"
+        if progress["word_improvement"]:
+            msg += f"✅ Từ tiến bộ: {', '.join(f'*{w}*' for w in progress['word_improvement'][:5])}\n"
+        if progress["word_declining"]:
+            msg += f"🔴 Từ cần ôn: {', '.join(f'*{w}*' for w in progress['word_declining'][:5])}\n"
+
+        if rec_metrics["total"] > 0:
+            msg += f"\n📊 **Hiệu quả gợi ý:** {rec_metrics['total']} gợi ý"
+            msg += f" | Hoàn thành: {rec_metrics['completion_rate']}%"
+            msg += f" | Bỏ qua: {rec_metrics['skip_rate']}%\n"
+
+        msg += "\n💡 Gõ `!profile` để xem chi tiết hồ sơ, `!plan` để xem kế hoạch hôm nay."
+        await message.reply(msg)
+        return
+
+    # ========================================================
     # XỬ LÝ KHI USER GỬI FILE VOICE (TIN NHẮN THOẠI TỪ IPHONE)
     # ========================================================
     if user_id in user_sessions and message.attachments:
@@ -567,6 +751,9 @@ async def on_message(message):
 
                 record_shadowing_attempt(user_id, item["id"], score)
 
+                if item.get("source") == "content":
+                    record_usage(item["id"], "shadowing")
+
                 result_msg = (
                     f"🎧 **KẾT QUẢ SHADOWING** — **{score}/100** điểm\n"
                     f"```ansi\n{ansi_feedback}\n```"
@@ -583,6 +770,39 @@ async def on_message(message):
 
                 if score >= 80:
                     del user_sessions[user_id]
+                return
+
+            # ====================================================
+            # NHÁNH 0.6: RECOMMEND PRACTICE - Luyện nội dung gợi ý
+            # ====================================================
+            if session["mode"] == "recommend_practice":
+                item = session["shadowing_item"]
+                score, ansi_feedback, error_details, problem_words, error_types, word_scores = await asyncio.get_event_loop().run_in_executor(
+                    None, functools.partial(analyze_audio_with_whisper, temp_audio_path, item["text"])
+                )
+
+                if os.path.exists(temp_audio_path):
+                    os.remove(temp_audio_path)
+
+                record_usage(item["id"], "recommend_practice")
+
+                result_msg = (
+                    f"💡 **KẾT QUẢ LUYỆN GỢI Ý** — **{score}/100** điểm\n"
+                    f"```ansi\n{ansi_feedback}\n```"
+                )
+                if error_details and score < 100:
+                    result_msg += f"\n{error_details}"
+
+                if score >= 80:
+                    rec_id = session.get("current_rec_id")
+                    if rec_id:
+                        mark_completed(rec_id, score)
+                    result_msg += "\n\n✅ Xuất sắc! Gõ `!recommend` để nhận gợi ý tiếp, hoặc `!daily` để vào phiên chính."
+                    await message.reply(result_msg)
+                    del user_sessions[user_id]
+                else:
+                    result_msg += "\n\n🔄 Chưa đạt 80. Thử lại hoặc `!recommend skip` để bỏ qua."
+                    await message.reply(result_msg)
                 return
 
             # ====================================================
@@ -671,6 +891,7 @@ async def on_message(message):
                         if session["round"] > session["max_rounds"]:
                             new_streak = update_user_progress(user_id, status="completed")
                             increment_total_sessions(user_id)
+                            _write_session_analytics(user_id, session)
                             stats = session["session_stats"]
                             await message.channel.send(
                                 f"🏆 **Hoàn thành!** 🔥 Chuỗi: `{new_streak} ngày`\n"
@@ -703,6 +924,7 @@ async def on_message(message):
             
             # Log điểm + lỗi vào database để track pattern dài hạn
             log_score(user_id, session["sentence"], score)
+            session["scores"].append(score)
             for word, err_type in error_types:
                 log_error_pattern(user_id, err_type, word)
 
@@ -756,6 +978,7 @@ async def on_message(message):
                     # HOÀN THÀNH ĐỦ HIỆP CỦA NGÀY — hiển thị tổng kết phiên
                     new_streak = update_user_progress(user_id, status="completed")
                     increment_total_sessions(user_id)
+                    _write_session_analytics(user_id, session)
                     stats = session["session_stats"]
                     await message.channel.send(
                         f"🏆 **HOÀN THÀNH CHỈ TIÊU NGÀY!** 🏆\n"
@@ -804,6 +1027,7 @@ async def on_message(message):
                     if session["round"] > session["max_rounds"]:
                         new_streak = update_user_progress(user_id, status="completed")
                         increment_total_sessions(user_id)
+                        _write_session_analytics(user_id, session)
                         stats = session["session_stats"]
                         await message.channel.send(
                             f"🏆 **Hoàn thành!** 🔥 Chuỗi: `{new_streak} ngày`\n"
@@ -841,6 +1065,7 @@ async def on_message(message):
                     if session["round"] > session["max_rounds"]:
                         new_streak = update_user_progress(user_id, status="completed")
                         increment_total_sessions(user_id)
+                        _write_session_analytics(user_id, session)
                         stats = session["session_stats"]
                         await message.channel.send(
                             f"🏆 **Hoàn thành!** 🔥 Chuỗi: `{new_streak} ngày`\n"

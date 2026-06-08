@@ -57,6 +57,7 @@ def get_recent_recommendations(user_id, limit=20):
 
 
 def get_recently_recommended_ids(user_id, days=3):
+    days = int(days)
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(

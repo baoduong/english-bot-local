@@ -58,10 +58,13 @@ def get_learning_progress(user_id, days=30):
 
     pronunciation_trend = "stable"
     if len(scores) >= 4:
-        first_half = [r["score"] for r in scores[:len(scores)//2]]
-        second_half = [r["score"] for r in scores[len(scores)//2:]]
-        avg_first = sum(first_half) / len(first_half)
-        avg_second = sum(second_half) / len(second_half)
+        first_half = [r["score"] for r in scores[:len(scores)//2] if r["score"] is not None]
+        second_half = [r["score"] for r in scores[len(scores)//2:] if r["score"] is not None]
+        if first_half and second_half:
+            avg_first = sum(first_half) / len(first_half)
+            avg_second = sum(second_half) / len(second_half)
+        else:
+            avg_first = avg_second = 0
         if avg_second - avg_first >= 5:
             pronunciation_trend = "improving"
         elif avg_first - avg_second >= 5:
@@ -106,7 +109,7 @@ def get_learning_progress(user_id, days=30):
         "pronunciation_trend": pronunciation_trend,
         "mastery_trend": mastery_trend,
         "score_count": len(scores),
-        "avg_score": round(sum(r["score"] for r in scores) / len(scores), 1) if scores else 0,
+        "avg_score": round(sum(r["score"] for r in scores if r["score"] is not None) / max(len([r for r in scores if r["score"] is not None]), 1), 1) if scores else 0,
         "phoneme_improvement": improving_phonemes,
         "phoneme_struggling": struggling_phonemes,
         "word_improvement": improving_words[:10],
