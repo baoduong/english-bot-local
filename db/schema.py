@@ -147,6 +147,30 @@ def init_db():
         )
     ''')
 
+    # 12. Content items — kho nội dung học tập (P3: C1+C2)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS content_items (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            source_type TEXT DEFAULT 'manual',
+            difficulty INTEGER DEFAULT 1,
+            tags TEXT DEFAULT '[]',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # 13. Content segments — câu/đoạn con thuộc content item (P3: C1+C2)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS content_segments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            content_item_id TEXT NOT NULL,
+            text TEXT NOT NULL,
+            position INTEGER NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (content_item_id) REFERENCES content_items(id)
+        )
+    ''')
+
     # Nạp dữ liệu mẫu nếu kho câu hỏi đang trống
     cursor.execute("SELECT COUNT(*) FROM sentences")
     if cursor.fetchone()[0] == 0:

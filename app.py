@@ -13,7 +13,8 @@ from database import (get_or_create_user, get_next_sentence, update_user_progres
                       record_word_attempts_batch, get_weak_words,
                       record_phoneme_errors_batch, get_weak_phonemes,
                       record_pattern_attempts_batch, get_weak_patterns,
-                      pick_shadowing_item, record_shadowing_attempt)
+                      pick_shadowing_item, record_shadowing_attempt,
+                      create_content_item, list_content_items, search_content, get_segments)
 from ai_brain import (analyze_audio_with_whisper, analyze_single_word, send_new_word_tutorial,
                       generate_sample_audio, ERROR_TYPE_LABELS)
 from analysis.patterns import extract_patterns
@@ -125,6 +126,8 @@ async def on_message(message):
             "📋 `!profile` — Hồ sơ học tập + điểm yếu + gợi ý\n"
             "🎧 `!shadow` — Luyện shadowing (nghe + đọc theo)\n"
             "📝 `!drills` — Bài tập hôm nay (tự sinh từ điểm yếu)\n"
+            "📥 `!import` — Nhập nội dung mới vào thư viện\n"
+            "📚 `!library` — Xem/tìm kiếm thư viện nội dung\n"
             "📖 `!help` — Hiển thị hướng dẫn này\n\n"
             "**Cách học:** Gõ `!daily` → Nhấn giữ micro → Đọc to câu hiện ra → Bot chấm điểm.\n"
             "Điểm ≥ 80 để qua hiệp. Nếu kẹt, bot sẽ tách từng từ khó ra luyện riêng. 💪\n"
@@ -416,6 +419,67 @@ async def on_message(message):
             msg += "\n"
 
         msg += "💡 Gõ `!shadow` để luyện shadowing, hoặc `!daily` để vào phiên chấm điểm!"
+        await message.reply(msg)
+        return
+
+    # ========================================================
+    # LỆNH NHẬP NỘI DUNG: !import
+    # ========================================================
+    if message.content.strip().startswith("!import"):
+        raw = message.content[len("!import"):].strip()
+        if not raw:
+            await message.reply(
+                "📥 **Cách dùng `!import`:**\n"
+                "```\n!import Tiêu đề bài\nNội dung câu thứ nhất. Câu thứ hai.\nĐoạn tiếp theo ở đây.\n```\n"
+                "Bot sẽ tự động tách thành từng câu (segment)."
+            )
+            return
+
+        lines = raw.split("\n", 1)
+        title = lines[0].strip()
+        body = lines[1].strip() if len(lines) > 1 else ""
+
+        if not body:
+            await message.reply("⚠️ Cần có nội dung sau tiêu đề. Viết tiêu đề trên dòng đầu, nội dung từ dòng 2.")
+            return
+
+        result = create_content_item(title=title, text=body)
+        await message.reply(
+            f"✅ **Đã nhập thành công!**\n"
+            f"📄 *{title}*\n"
+            f"🔢 Tách được **{result['segment_count']}** câu (segments)\n"
+            f"🆔 ID: `{result['item_id']}`"
+        )
+        return
+
+    # ========================================================
+    # LỆNH THƯ VIỆN: !library
+    # ========================================================
+    if message.content.strip().startswith("!library"):
+        args = message.content[len("!library"):].strip()
+
+        if not args:
+            items = list_content_items(limit=10)
+            if not items:
+                await message.reply("📚 Thư viện trống. Gõ `!import` để thêm nội dung!")
+                return
+            msg = "📚 **THƯ VIỆN NỘI DUNG** (gần nhất)\n\n"
+            for item in items:
+                tags_str = ", ".join(item["tags"]) if item["tags"] else ""
+                tag_display = f" [{tags_str}]" if tags_str else ""
+                msg += f"• `{item['id']}` **{item['title']}** (diff={item['difficulty']}){tag_display}\n"
+            msg += f"\n💡 `!library <từ khóa>` để tìm kiếm"
+            await message.reply(msg)
+            return
+
+        results = search_content(args, limit=10)
+        if not results:
+            await message.reply(f"🔍 Không tìm thấy nội dung nào cho \"{args}\".")
+            return
+
+        msg = f"🔍 **Kết quả cho \"{args}\":**\n\n"
+        for item in results:
+            msg += f"• `{item['id']}` **{item['title']}** (diff={item['difficulty']})\n"
         await message.reply(msg)
         return
 

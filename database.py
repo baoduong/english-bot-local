@@ -12,4 +12,6 @@ from db import (
     create_shadowing_item, get_shadowing_item, list_shadowing_items,
     pick_shadowing_item, record_shadowing_attempt, get_shadowing_history,
     seed_shadowing_items,
+    create_content_item, get_content_item, get_segments,
+    list_content_items, search_content, bulk_import,
 )
