@@ -5,6 +5,8 @@ import ollama
 import edge_tts
 import discord
 import os
+import asyncio
+import functools
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -37,11 +39,21 @@ _difficulty_cache = {}
 
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma4:31b-cloud")
 
+def _ollama_generate(prompt, temperature=0.7):
+    """Gọi Ollama sync — dùng trong thread pool để không block event loop"""
+    return ollama.generate(model=OLLAMA_MODEL, prompt=prompt, options={"temperature": temperature})
+
+async def _ollama_async(prompt, temperature=0.7):
+    """Gọi Ollama non-blocking — chạy trong thread executor"""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, functools.partial(_ollama_generate, prompt, temperature))
+
 def assess_difficulty(text):
     """
     Dùng Ollama phân tích độ khó phát âm của câu/từ cho người Việt.
     Trả về: "simple" hoặc "complex"
     Kết quả được cache để không gọi lại Ollama cho cùng text.
+    Hàm sync — gọi trước khi vào async flow (trong analyze functions chạy trên thread).
     """
     cache_key = text.strip().lower()
     if cache_key in _difficulty_cache:
@@ -362,16 +374,16 @@ def _analyze_single_word_whisper(audio_path, target_word):
     # Điều kiện ĐỦ: probability (giọng nói rõ ràng không?)
     prob_score = best_prob
     
-    # Combined: phoneme chiếm 65% (quan trọng hơn), probability 35%
-    # "brief" đúng + prob 2%:  1.0*0.65 + 0.02*0.35 = 0.657 → 65% → PASS
-    # "live" sai + prob 90%:   0.4*0.65 + 0.90*0.35 = 0.575 → 57% → FAIL
-    # "brief" đúng + prob 80%: 1.0*0.65 + 0.80*0.35 = 0.930 → 93% → PASS
-    combined = phon_score * 0.65 + prob_score * 0.35
+    # Combined: phoneme chiếm 75% (quan trọng hơn), probability 25%
+    # "brief" đúng + prob 2%:  1.0*0.75 + 0.02*0.25 = 0.755 → 75% → PASS
+    # "live" sai + prob 90%:   0.4*0.75 + 0.90*0.25 = 0.525 → 52% → FAIL
+    # "brief" đúng + prob 80%: 1.0*0.75 + 0.80*0.25 = 0.950 → 95% → PASS
+    combined = phon_score * 0.75 + prob_score * 0.25
     
     # Pass khi combined ≥ 0.60 — cả 2 yếu tố đều phải đạt mức tối thiểu
     passed = combined >= 0.60
     
-    return passed, best_confidence, heard
+    return passed, combined, heard
 
 
 # ============================================================
@@ -515,7 +527,7 @@ async def send_new_word_tutorial(channel, sentence, new_word):
     Viết cực kỳ ngắn gọn, dưới 50 từ, trình bày bằng các gạch đầu dòng rõ ràng.
     """
     try:
-        response = ollama.generate(model=OLLAMA_MODEL, prompt=prompt)
+        response = await _ollama_async(prompt)
         teacher_tip = response["response"]
     except Exception as e:
         print(f"Lỗi gọi Ollama: {e}")

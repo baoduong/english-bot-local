@@ -1,6 +1,8 @@
 import discord
 import os
 import requests
+import asyncio
+import functools
 
 from dotenv import load_dotenv
 # Import chuẩn xác các hàm xử lý từ 2 file vệ tinh đã viết
@@ -274,7 +276,9 @@ async def on_message(message):
             # ====================================================
             if session["mode"] == "word_drill":
                 current_word = session["drill_words"][session["drill_index"]]
-                passed, confidence, heard = analyze_single_word(temp_audio_path, current_word)
+                passed, confidence, heard = await asyncio.get_event_loop().run_in_executor(
+                    None, functools.partial(analyze_single_word, temp_audio_path, current_word)
+                )
                 
                 if os.path.exists(temp_audio_path):
                     os.remove(temp_audio_path)
@@ -375,7 +379,9 @@ async def on_message(message):
             # ====================================================
             # NHÁNH 2: SENTENCE MODE - Chấm cả câu (logic gốc)
             # ====================================================
-            score, ansi_feedback, error_details, problem_words, error_types = analyze_audio_with_whisper(temp_audio_path, session["sentence"])
+            score, ansi_feedback, error_details, problem_words, error_types = await asyncio.get_event_loop().run_in_executor(
+                None, functools.partial(analyze_audio_with_whisper, temp_audio_path, session["sentence"])
+            )
             
             # Xóa file tạm ngay lập tức sau khi xử lý xong để nhẹ máy local
             if os.path.exists(temp_audio_path):
