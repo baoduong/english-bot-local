@@ -1,0 +1,9 @@
+openai-whisper
+ollama
+edge-tts
+requests
+discord
+python-dotenv
+eng-to-ipa
+azure-cognitiveservices-speech
+pydub
