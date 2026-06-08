@@ -192,6 +192,20 @@ def init_db():
     except Exception:
         pass
 
+    # 15. Recommendation feedback — theo dõi hiệu quả gợi ý (P4: C24)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS recommendation_feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            segment_id INTEGER NOT NULL,
+            recommended_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed INTEGER DEFAULT 0,
+            skipped INTEGER DEFAULT 0,
+            score_after_practice REAL,
+            FOREIGN KEY (segment_id) REFERENCES content_segments(id)
+        )
+    ''')
+
     # Nạp dữ liệu mẫu nếu kho câu hỏi đang trống
     cursor.execute("SELECT COUNT(*) FROM sentences")
     if cursor.fetchone()[0] == 0:

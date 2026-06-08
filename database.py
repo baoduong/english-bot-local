@@ -17,4 +17,6 @@ from db import (
     compute_segment_metadata, find_segments_by_phoneme,
     find_segments_by_difficulty, find_segments_by_keyword,
     record_usage, get_usage_history, get_unused_segments,
+    record_recommendation, mark_completed, mark_skipped,
+    get_recent_recommendations, get_recently_recommended_ids,
 )

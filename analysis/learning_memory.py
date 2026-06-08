@@ -82,7 +82,11 @@ def get_learner_profile(user_id):
 
     for row in phoneme_data:
         try:
-            last_dt = datetime.strptime(row["last_seen"], "%Y-%m-%d").date()
+            last_str = row["last_seen"] or ""
+            if " " in last_str:
+                last_dt = datetime.strptime(last_str, "%Y-%m-%d %H:%M:%S").date()
+            else:
+                last_dt = datetime.strptime(last_str, "%Y-%m-%d").date()
             days_since = (today - last_dt).days
         except (ValueError, TypeError):
             days_since = 999
