@@ -9,5 +9,9 @@ from db.word_stats import record_word_attempt, record_word_attempts_batch, get_w
 from db.phoneme_tracking import record_phoneme_error, record_phoneme_errors_batch, get_weak_phonemes
 from db.patterns import (record_pattern_attempt, record_pattern_attempts_batch,
                          get_weak_patterns, get_strong_patterns, get_all_patterns)
+from db.shadowing import (create_shadowing_item, get_shadowing_item, list_shadowing_items,
+                          pick_shadowing_item, record_shadowing_attempt, get_shadowing_history,
+                          seed_shadowing_items)
 
 init_db()
+seed_shadowing_items()

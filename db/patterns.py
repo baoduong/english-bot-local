@@ -73,8 +73,8 @@ def record_pattern_attempts_batch(user_id, patterns, score):
     conn.close()
 
 
-def get_weak_patterns(user_id, limit=10):
-    """Return patterns with lowest mastery, min 2 attempts."""
+def get_weak_patterns(user_id, limit=10, min_attempts=2):
+    """Return patterns with lowest mastery, min N attempts."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -82,10 +82,10 @@ def get_weak_patterns(user_id, limit=10):
                   ROUND(total_score / attempt_count, 1) as avg_score,
                   mastery_level, last_seen
            FROM speaking_patterns
-           WHERE user_id = ? AND attempt_count >= 2
+           WHERE user_id = ? AND attempt_count >= ?
            ORDER BY (total_score / attempt_count) ASC
            LIMIT ?""",
-        (user_id, limit)
+        (user_id, min_attempts, limit)
     )
     results = [dict(r) for r in cursor.fetchall()]
     conn.close()

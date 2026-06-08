@@ -9,4 +9,7 @@ from db import (
     record_phoneme_error, record_phoneme_errors_batch, get_weak_phonemes,
     record_pattern_attempt, record_pattern_attempts_batch,
     get_weak_patterns, get_strong_patterns, get_all_patterns,
+    create_shadowing_item, get_shadowing_item, list_shadowing_items,
+    pick_shadowing_item, record_shadowing_attempt, get_shadowing_history,
+    seed_shadowing_items,
 )

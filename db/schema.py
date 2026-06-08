@@ -124,6 +124,29 @@ def init_db():
         )
     ''')
 
+    # 10. Shadowing items — kho câu shadowing (P2: C8)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS shadowing_items (
+            id TEXT PRIMARY KEY,
+            text TEXT NOT NULL,
+            difficulty INTEGER DEFAULT 1,
+            source TEXT DEFAULT 'manual',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # 11. Shadowing attempts — kết quả từng lần shadowing (P2: C8)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS shadowing_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            shadowing_item_id TEXT NOT NULL,
+            score REAL,
+            completed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (shadowing_item_id) REFERENCES shadowing_items(id)
+        )
+    ''')
+
     # Nạp dữ liệu mẫu nếu kho câu hỏi đang trống
     cursor.execute("SELECT COUNT(*) FROM sentences")
     if cursor.fetchone()[0] == 0:

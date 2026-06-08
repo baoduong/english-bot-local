@@ -12,12 +12,14 @@ from database import (get_or_create_user, get_next_sentence, update_user_progres
                       increment_total_sessions,
                       record_word_attempts_batch, get_weak_words,
                       record_phoneme_errors_batch, get_weak_phonemes,
-                      record_pattern_attempts_batch, get_weak_patterns)
+                      record_pattern_attempts_batch, get_weak_patterns,
+                      pick_shadowing_item, record_shadowing_attempt)
 from ai_brain import (analyze_audio_with_whisper, analyze_single_word, send_new_word_tutorial,
                       generate_sample_audio, ERROR_TYPE_LABELS)
 from analysis.patterns import extract_patterns
 from analysis.learning_memory import (get_learner_profile, get_learning_insights,
                                       get_practice_recommendations)
+from analysis.drills import generate_daily_practice
 
 load_dotenv()
 
@@ -120,6 +122,9 @@ async def on_message(message):
             "⏭️ `!skip` — Bỏ qua câu hiện tại, sang câu mới\n"
             "🛑 `!stop` — Thoát phiên học giữa chừng\n"
             "📊 `!stats` — Xem thống kê tiến trình và điểm yếu\n"
+            "📋 `!profile` — Hồ sơ học tập + điểm yếu + gợi ý\n"
+            "🎧 `!shadow` — Luyện shadowing (nghe + đọc theo)\n"
+            "📝 `!drills` — Bài tập hôm nay (tự sinh từ điểm yếu)\n"
             "📖 `!help` — Hiển thị hướng dẫn này\n\n"
             "**Cách học:** Gõ `!daily` → Nhấn giữ micro → Đọc to câu hiện ra → Bot chấm điểm.\n"
             "Điểm ≥ 80 để qua hiệp. Nếu kẹt, bot sẽ tách từng từ khó ra luyện riêng. 💪\n"
@@ -341,6 +346,80 @@ async def on_message(message):
         return
 
     # ========================================================
+    # LỆNH SHADOWING: !shadow
+    # ========================================================
+    if message.content.strip() == "!shadow":
+        item = pick_shadowing_item(user_id)
+        if not item:
+            await message.reply("📭 Chưa có câu shadowing nào trong hệ thống. Liên hệ admin để thêm nhé!")
+            return
+
+        user_sessions[user_id] = {
+            "mode": "shadowing",
+            "shadowing_item": item,
+            "round": 0,
+            "max_rounds": 0,
+            "sentence": item["text"],
+            "new_word": None,
+            "fail_count": 0,
+            "drill_words": [],
+            "drill_index": 0,
+            "drill_fails": 0,
+            "drill_passed": 0,
+            "drill_done": False,
+            "used_sentences": [],
+            "session_stats": {"passed_first_try": 0, "needed_drill": 0, "skipped": 0},
+        }
+
+        await message.channel.send(
+            f"🎧 **SHADOWING MODE**\n\n"
+            f"👉 **`{item['text']}`**\n\n"
+            f"Nghe mẫu bên dưới, rồi ghi âm đọc theo nhé! 🎤"
+        )
+        sample_path = f"shadow_sample_{user_id}.mp3"
+        if await generate_sample_audio(item["text"], sample_path):
+            await message.channel.send(file=discord.File(sample_path))
+            os.remove(sample_path)
+        return
+
+    # ========================================================
+    # LỆNH XEM BÀI TẬP HÔM NAY: !drills
+    # ========================================================
+    if message.content.strip() == "!drills":
+        practice = generate_daily_practice(user_id)
+
+        if not practice["phoneme_drills"] and not practice["word_drills"] and not practice["pattern_drills"]:
+            await message.reply("📋 Chưa có đủ dữ liệu để tạo bài tập. Luyện thêm vài phiên `!daily` rồi quay lại!")
+            return
+
+        msg = "📝 **BÀI TẬP HÔM NAY**\n\n"
+
+        if practice["phoneme_drills"]:
+            msg += "🔤 **Luyện âm:**\n"
+            for drill in practice["phoneme_drills"]:
+                words = ", ".join(drill["words"])
+                msg += f"  /{drill['phoneme']}/ → {words}\n"
+            msg += "\n"
+
+        if practice["word_drills"]:
+            msg += "📝 **Từ cần ôn:**\n"
+            for drill in practice["word_drills"]:
+                msg += f"  • *{drill['word']}* (TB: {drill['avg_score']}/100)\n"
+            msg += "\n"
+
+        if practice["pattern_drills"]:
+            msg += "🗣️ **Cấu trúc cần luyện:**\n"
+            for drill in practice["pattern_drills"]:
+                msg += f"  **\"{drill['pattern']}\"**\n"
+                for s in drill["sentences"]:
+                    msg += f"    → {s}\n"
+            msg += "\n"
+
+        msg += "💡 Gõ `!shadow` để luyện shadowing, hoặc `!daily` để vào phiên chấm điểm!"
+        await message.reply(msg)
+        return
+
+    # ========================================================
     # XỬ LÝ KHI USER GỬI FILE VOICE (TIN NHẮN THOẠI TỪ IPHONE)
     # ========================================================
     if user_id in user_sessions and message.attachments:
@@ -408,6 +487,38 @@ async def on_message(message):
                         if await generate_sample_audio(keyword, sample_path):
                             await message.channel.send(file=discord.File(sample_path))
                             os.remove(sample_path)
+                return
+
+            # ====================================================
+            # NHÁNH 0.5: SHADOWING MODE - Đọc theo mẫu
+            # ====================================================
+            if session["mode"] == "shadowing":
+                item = session["shadowing_item"]
+                score, ansi_feedback, error_details, problem_words, error_types, word_scores = await asyncio.get_event_loop().run_in_executor(
+                    None, functools.partial(analyze_audio_with_whisper, temp_audio_path, item["text"])
+                )
+
+                if os.path.exists(temp_audio_path):
+                    os.remove(temp_audio_path)
+
+                record_shadowing_attempt(user_id, item["id"], score)
+
+                result_msg = (
+                    f"🎧 **KẾT QUẢ SHADOWING** — **{score}/100** điểm\n"
+                    f"```ansi\n{ansi_feedback}\n```"
+                )
+                if error_details and score < 100:
+                    result_msg += f"\n{error_details}"
+
+                if score >= 80:
+                    result_msg += "\n\n✅ Tốt lắm! Gõ `!shadow` để thử câu khác, hoặc `!daily` để vào phiên chính."
+                else:
+                    result_msg += "\n\n🔄 Chưa đạt 80 — nghe lại mẫu rồi thử lần nữa! Hoặc gõ `!shadow` để đổi câu."
+
+                await message.reply(result_msg)
+
+                if score >= 80:
+                    del user_sessions[user_id]
                 return
 
             # ====================================================
