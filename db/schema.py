@@ -206,6 +206,30 @@ def init_db():
         )
     ''')
 
+    # Migration: thêm recommendation_reasons cho audit (P4.5: C37)
+    try:
+        cursor.execute("ALTER TABLE recommendation_feedback ADD COLUMN recommendation_reasons TEXT DEFAULT '[]'")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE recommendation_feedback ADD COLUMN recommendation_score REAL DEFAULT 0")
+    except Exception:
+        pass
+
+    # 16. Session analytics — theo dõi hiệu quả phiên học (P4.5: C35)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS session_analytics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed_at DATETIME,
+            rounds_completed INTEGER DEFAULT 0,
+            rounds_total INTEGER DEFAULT 0,
+            avg_score REAL DEFAULT 0,
+            content_segments_used INTEGER DEFAULT 0
+        )
+    ''')
+
     # Nạp dữ liệu mẫu nếu kho câu hỏi đang trống
     cursor.execute("SELECT COUNT(*) FROM sentences")
     if cursor.fetchone()[0] == 0:

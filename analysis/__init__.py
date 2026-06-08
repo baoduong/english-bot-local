@@ -10,3 +10,7 @@ from analysis.drills import (generate_phoneme_drills, generate_word_drills,
                              generate_pattern_drills, generate_daily_practice)
 from analysis.recommendations import (get_candidate_segments, score_candidate,
                                       get_recommended_content, build_today_session)
+from analysis.metrics import (get_recommendation_metrics, get_learning_progress,
+                              get_session_analytics, get_content_effectiveness,
+                              audit_recommendation_quality, validate_session_quality,
+                              export_learning_profile)

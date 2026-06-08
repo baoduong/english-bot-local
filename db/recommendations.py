@@ -1,12 +1,16 @@
+import json
 from db.connection import get_db_connection
 
 
-def record_recommendation(user_id, segment_id):
+def record_recommendation(user_id, segment_id, reasons=None, score=0):
     conn = get_db_connection()
     cursor = conn.cursor()
+    reasons_json = json.dumps(reasons or [], ensure_ascii=False)
     cursor.execute(
-        "INSERT INTO recommendation_feedback (user_id, segment_id) VALUES (?, ?)",
-        (user_id, segment_id)
+        """INSERT INTO recommendation_feedback
+           (user_id, segment_id, recommendation_reasons, recommendation_score)
+           VALUES (?, ?, ?, ?)""",
+        (user_id, segment_id, reasons_json, score)
     )
     rec_id = cursor.lastrowid
     conn.commit()
