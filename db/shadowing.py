@@ -142,3 +142,45 @@ def seed_shadowing_items():
 
     conn.commit()
     conn.close()
+
+
+def pick_content_shadowing(user_id, phoneme=None, difficulty=None, limit=1):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    query = """SELECT cs.id, cs.text, cs.difficulty_score, cs.phoneme_metadata,
+                      ci.title as item_title
+               FROM content_segments cs
+               JOIN content_items ci ON cs.content_item_id = ci.id
+               LEFT JOIN content_usage cu ON cs.id = cu.segment_id AND cu.usage_type = 'shadowing'
+               WHERE cs.difficulty_score > 0"""
+    params = []
+
+    if phoneme:
+        query += " AND cs.phoneme_metadata LIKE ?"
+        params.append(f'%"{phoneme}"%')
+
+    if difficulty:
+        query += " AND cs.difficulty_score = ?"
+        params.append(difficulty)
+
+    query += " GROUP BY cs.id ORDER BY COUNT(cu.id) ASC, RANDOM() LIMIT ?"
+    params.append(limit)
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+
+    import json
+    results = []
+    for row in rows:
+        item = dict(row)
+        try:
+            item["phoneme_metadata"] = json.loads(item["phoneme_metadata"])
+        except (json.JSONDecodeError, TypeError):
+            item["phoneme_metadata"] = []
+        results.append(item)
+
+    if limit == 1:
+        return results[0] if results else None
+    return results

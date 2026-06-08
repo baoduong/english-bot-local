@@ -2,6 +2,8 @@ import json
 import uuid
 from db.connection import get_db_connection
 from analysis.segmentation import segment_text
+from analysis.segment_scoring import score_segment_difficulty
+from analysis.phoneme_extraction import extract_target_phonemes
 
 
 def create_content_item(title, text, difficulty=1, source_type="manual", tags=None):
@@ -23,9 +25,11 @@ def create_content_item(title, text, difficulty=1, source_type="manual", tags=No
     )
 
     for position, segment in enumerate(segments, start=1):
+        diff_score = score_segment_difficulty(segment)
+        phonemes = json.dumps(extract_target_phonemes(segment), ensure_ascii=False)
         cursor.execute(
-            "INSERT INTO content_segments (content_item_id, text, position) VALUES (?, ?, ?)",
-            (item_id, segment, position)
+            "INSERT INTO content_segments (content_item_id, text, position, difficulty_score, phoneme_metadata) VALUES (?, ?, ?, ?, ?)",
+            (item_id, segment, position, diff_score, phonemes)
         )
 
     conn.commit()
@@ -149,4 +153,98 @@ def bulk_import(items):
             tags=item.get("tags"),
         )
         results.append(result)
+    return results
+
+
+def compute_segment_metadata(item_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, text FROM content_segments WHERE content_item_id = ? ORDER BY position",
+        (item_id,)
+    )
+    rows = cursor.fetchall()
+
+    for row in rows:
+        difficulty = score_segment_difficulty(row["text"])
+        phonemes = extract_target_phonemes(row["text"])
+        phonemes_json = json.dumps(phonemes, ensure_ascii=False)
+        cursor.execute(
+            "UPDATE content_segments SET difficulty_score = ?, phoneme_metadata = ? WHERE id = ?",
+            (difficulty, phonemes_json, row["id"])
+        )
+
+    conn.commit()
+    conn.close()
+    return len(rows)
+
+
+def find_segments_by_phoneme(phoneme, limit=20):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    search_pattern = f'%"{phoneme}"%'
+    cursor.execute(
+        """SELECT cs.*, ci.title as item_title FROM content_segments cs
+           JOIN content_items ci ON cs.content_item_id = ci.id
+           WHERE cs.phoneme_metadata LIKE ?
+           ORDER BY cs.difficulty_score ASC LIMIT ?""",
+        (search_pattern, limit)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    results = []
+    for row in rows:
+        item = dict(row)
+        try:
+            item["phoneme_metadata"] = json.loads(item["phoneme_metadata"])
+        except (json.JSONDecodeError, TypeError):
+            item["phoneme_metadata"] = []
+        results.append(item)
+    return results
+
+
+def find_segments_by_difficulty(min_difficulty=1, max_difficulty=5, limit=20):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """SELECT cs.*, ci.title as item_title FROM content_segments cs
+           JOIN content_items ci ON cs.content_item_id = ci.id
+           WHERE cs.difficulty_score >= ? AND cs.difficulty_score <= ?
+           ORDER BY cs.difficulty_score ASC LIMIT ?""",
+        (min_difficulty, max_difficulty, limit)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    results = []
+    for row in rows:
+        item = dict(row)
+        try:
+            item["phoneme_metadata"] = json.loads(item["phoneme_metadata"])
+        except (json.JSONDecodeError, TypeError):
+            item["phoneme_metadata"] = []
+        results.append(item)
+    return results
+
+
+def find_segments_by_keyword(keyword, limit=20):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    search_pattern = f"%{keyword}%"
+    cursor.execute(
+        """SELECT cs.*, ci.title as item_title FROM content_segments cs
+           JOIN content_items ci ON cs.content_item_id = ci.id
+           WHERE cs.text LIKE ?
+           ORDER BY cs.difficulty_score ASC LIMIT ?""",
+        (search_pattern, limit)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    results = []
+    for row in rows:
+        item = dict(row)
+        try:
+            item["phoneme_metadata"] = json.loads(item["phoneme_metadata"])
+        except (json.JSONDecodeError, TypeError):
+            item["phoneme_metadata"] = []
+        results.append(item)
     return results

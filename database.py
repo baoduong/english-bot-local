@@ -11,7 +11,10 @@ from db import (
     get_weak_patterns, get_strong_patterns, get_all_patterns,
     create_shadowing_item, get_shadowing_item, list_shadowing_items,
     pick_shadowing_item, record_shadowing_attempt, get_shadowing_history,
-    seed_shadowing_items,
+    seed_shadowing_items, pick_content_shadowing,
     create_content_item, get_content_item, get_segments,
     list_content_items, search_content, bulk_import,
+    compute_segment_metadata, find_segments_by_phoneme,
+    find_segments_by_difficulty, find_segments_by_keyword,
+    record_usage, get_usage_history, get_unused_segments,
 )

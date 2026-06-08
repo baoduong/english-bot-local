@@ -171,6 +171,27 @@ def init_db():
         )
     ''')
 
+    # 14. Content usage tracking — ghi nhận khi nội dung được sử dụng (P3.5: C15)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS content_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            segment_id INTEGER NOT NULL,
+            usage_type TEXT NOT NULL,
+            used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (segment_id) REFERENCES content_segments(id)
+        )
+    ''')
+
+    # Migration: thêm cột difficulty_score và phoneme_metadata cho content_segments (P3.5: C16, C17)
+    try:
+        cursor.execute("ALTER TABLE content_segments ADD COLUMN difficulty_score INTEGER DEFAULT 0")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE content_segments ADD COLUMN phoneme_metadata TEXT DEFAULT '[]'")
+    except Exception:
+        pass
+
     # Nạp dữ liệu mẫu nếu kho câu hỏi đang trống
     cursor.execute("SELECT COUNT(*) FROM sentences")
     if cursor.fetchone()[0] == 0:
