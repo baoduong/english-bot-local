@@ -1,0 +1,1203 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "English Pronunciation Bot",
+    "languages": [
+      "python",
+      "markdown"
+    ],
+    "frameworks": [
+      "Discord.py",
+      "OpenAI Whisper",
+      "Ollama",
+      "Azure Speech",
+      "Edge-TTS"
+    ],
+    "description": "Discord bot for personalized English pronunciation coaching — records audio, scores each word, and auto-schedules smart spaced repetition reviews.",
+    "analyzedAt": "2026-06-08T06:05:50.973Z",
+    "gitCommitHash": "ffe22997a99c96e3102e8b44a50f65db96dfd138"
+  },
+  "nodes": [
+    {
+      "id": "file:ai_brain.py",
+      "type": "file",
+      "name": "ai_brain.py",
+      "filePath": "ai_brain.py",
+      "summary": "Python source module ai_brain.py for the pronunciation bot runtime logic.",
+      "tags": [
+        "python",
+        "module",
+        "code"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:ai_brain.py:_ollama_generate",
+      "type": "function",
+      "name": "_ollama_generate",
+      "filePath": "ai_brain.py",
+      "summary": "Function _ollama_generate in ai_brain.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:ai_brain.py:_ollama_async",
+      "type": "function",
+      "name": "_ollama_async",
+      "filePath": "ai_brain.py",
+      "summary": "Function _ollama_async in ai_brain.py.",
+      "tags": [
+        "python",
+        "function",
+        "async"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:ai_brain.py:assess_difficulty",
+      "type": "function",
+      "name": "assess_difficulty",
+      "filePath": "ai_brain.py",
+      "summary": "Function assess_difficulty in ai_brain.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:ai_brain.py:_should_use_azure",
+      "type": "function",
+      "name": "_should_use_azure",
+      "filePath": "ai_brain.py",
+      "summary": "Function _should_use_azure in ai_brain.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:ai_brain.py:clean_word",
+      "type": "function",
+      "name": "clean_word",
+      "filePath": "ai_brain.py",
+      "summary": "Function clean_word in ai_brain.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:ai_brain.py:phoneme_similarity",
+      "type": "function",
+      "name": "phoneme_similarity",
+      "filePath": "ai_brain.py",
+      "summary": "Function phoneme_similarity in ai_brain.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:ai_brain.py:classify_error",
+      "type": "function",
+      "name": "classify_error",
+      "filePath": "ai_brain.py",
+      "summary": "Function classify_error in ai_brain.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:ai_brain.py:_ensure_wav",
+      "type": "function",
+      "name": "_ensure_wav",
+      "filePath": "ai_brain.py",
+      "summary": "Function _ensure_wav in ai_brain.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:ai_brain.py:analyze_audio_with_whisper",
+      "type": "function",
+      "name": "analyze_audio_with_whisper",
+      "filePath": "ai_brain.py",
+      "summary": "Function analyze_audio_with_whisper in ai_brain.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:ai_brain.py:analyze_single_word",
+      "type": "function",
+      "name": "analyze_single_word",
+      "filePath": "ai_brain.py",
+      "summary": "Function analyze_single_word in ai_brain.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:ai_brain.py:_analyze_with_whisper",
+      "type": "function",
+      "name": "_analyze_with_whisper",
+      "filePath": "ai_brain.py",
+      "summary": "Function _analyze_with_whisper in ai_brain.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:ai_brain.py:_analyze_single_word_whisper",
+      "type": "function",
+      "name": "_analyze_single_word_whisper",
+      "filePath": "ai_brain.py",
+      "summary": "Function _analyze_single_word_whisper in ai_brain.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:ai_brain.py:_analyze_with_azure",
+      "type": "function",
+      "name": "_analyze_with_azure",
+      "filePath": "ai_brain.py",
+      "summary": "Function _analyze_with_azure in ai_brain.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:ai_brain.py:_analyze_single_word_azure",
+      "type": "function",
+      "name": "_analyze_single_word_azure",
+      "filePath": "ai_brain.py",
+      "summary": "Function _analyze_single_word_azure in ai_brain.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:ai_brain.py:generate_sample_audio",
+      "type": "function",
+      "name": "generate_sample_audio",
+      "filePath": "ai_brain.py",
+      "summary": "Function generate_sample_audio in ai_brain.py.",
+      "tags": [
+        "python",
+        "function",
+        "async"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:ai_brain.py:send_new_word_tutorial",
+      "type": "function",
+      "name": "send_new_word_tutorial",
+      "filePath": "ai_brain.py",
+      "summary": "Function send_new_word_tutorial in ai_brain.py.",
+      "tags": [
+        "python",
+        "function",
+        "async"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app.py",
+      "type": "file",
+      "name": "app.py",
+      "filePath": "app.py",
+      "summary": "Python source module app.py for the pronunciation bot runtime logic.",
+      "tags": [
+        "python",
+        "module",
+        "code"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:app.py:on_ready",
+      "type": "function",
+      "name": "on_ready",
+      "filePath": "app.py",
+      "summary": "Function on_ready in app.py.",
+      "tags": [
+        "python",
+        "function",
+        "async"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:app.py:start_keyword_drill",
+      "type": "function",
+      "name": "start_keyword_drill",
+      "filePath": "app.py",
+      "summary": "Function start_keyword_drill in app.py.",
+      "tags": [
+        "python",
+        "function",
+        "async"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:app.py:on_message",
+      "type": "function",
+      "name": "on_message",
+      "filePath": "app.py",
+      "summary": "Function on_message in app.py.",
+      "tags": [
+        "python",
+        "function",
+        "async"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:database.py",
+      "type": "file",
+      "name": "database.py",
+      "filePath": "database.py",
+      "summary": "Python source module database.py for the pronunciation bot runtime logic.",
+      "tags": [
+        "python",
+        "module",
+        "code"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:database.py:get_db_connection",
+      "type": "function",
+      "name": "get_db_connection",
+      "filePath": "database.py",
+      "summary": "Function get_db_connection in database.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:database.py:init_db",
+      "type": "function",
+      "name": "init_db",
+      "filePath": "database.py",
+      "summary": "Function init_db in database.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:database.py:get_or_create_user",
+      "type": "function",
+      "name": "get_or_create_user",
+      "filePath": "database.py",
+      "summary": "Function get_or_create_user in database.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:database.py:update_user_progress",
+      "type": "function",
+      "name": "update_user_progress",
+      "filePath": "database.py",
+      "summary": "Function update_user_progress in database.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:database.py:get_next_sentence",
+      "type": "function",
+      "name": "get_next_sentence",
+      "filePath": "database.py",
+      "summary": "Function get_next_sentence in database.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:database.py:save_failed_word",
+      "type": "function",
+      "name": "save_failed_word",
+      "filePath": "database.py",
+      "summary": "Function save_failed_word in database.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:database.py:clear_failed_word",
+      "type": "function",
+      "name": "clear_failed_word",
+      "filePath": "database.py",
+      "summary": "Function clear_failed_word in database.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:database.py:update_sentence_progress",
+      "type": "function",
+      "name": "update_sentence_progress",
+      "filePath": "database.py",
+      "summary": "Function update_sentence_progress in database.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:database.py:log_score",
+      "type": "function",
+      "name": "log_score",
+      "filePath": "database.py",
+      "summary": "Function log_score in database.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:database.py:log_error_pattern",
+      "type": "function",
+      "name": "log_error_pattern",
+      "filePath": "database.py",
+      "summary": "Function log_error_pattern in database.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:database.py:get_user_stats",
+      "type": "function",
+      "name": "get_user_stats",
+      "filePath": "database.py",
+      "summary": "Function get_user_stats in database.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:database.py:adjust_user_level",
+      "type": "function",
+      "name": "adjust_user_level",
+      "filePath": "database.py",
+      "summary": "Function adjust_user_level in database.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:database.py:increment_total_sessions",
+      "type": "function",
+      "name": "increment_total_sessions",
+      "filePath": "database.py",
+      "summary": "Function increment_total_sessions in database.py.",
+      "tags": [
+        "python",
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:discord.bk",
+      "type": "file",
+      "name": "discord.bk",
+      "filePath": "discord.bk",
+      "summary": "Discord bot event loop handling daily learning sessions, voice attachment scoring flow, round progression, retry logic, and session lifecycle management.",
+      "tags": [
+        "discord",
+        "event-loop",
+        "session-state",
+        "voice-processing",
+        "spaced-repetition"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:discord.bk:on_ready",
+      "type": "function",
+      "name": "on_ready",
+      "filePath": "discord.bk",
+      "summary": "Discord client ready event handler that logs bot online status.",
+      "tags": [
+        "discord-event",
+        "startup"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:discord.bk:on_message",
+      "type": "function",
+      "name": "on_message",
+      "filePath": "discord.bk",
+      "summary": "Main Discord message handler that starts study sessions on !daily, processes uploaded audio, scores pronunciation, and manages round/fail progression.",
+      "tags": [
+        "discord-event",
+        "command-handler",
+        "audio-scoring",
+        "learning-flow"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:README.md",
+      "type": "document",
+      "name": "README.md",
+      "filePath": "README.md",
+      "summary": "Project documentation covering features, installation, environment configuration, command usage flow, scoring engine behavior, and data model overview.",
+      "tags": [
+        "documentation",
+        "setup",
+        "usage",
+        "architecture"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "config:requirements.txt",
+      "type": "config",
+      "name": "requirements.txt",
+      "filePath": "requirements.txt",
+      "summary": "Python dependency manifest listing runtime libraries for Discord bot messaging, HTTP/audio processing, pronunciation analysis, and optional Azure speech scoring.",
+      "tags": [
+        "dependencies",
+        "python",
+        "discord",
+        "speech"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:ai_brain.py",
+      "target": "function:ai_brain.py:_ollama_generate",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:ai_brain.py",
+      "target": "function:ai_brain.py:_ollama_async",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:ai_brain.py",
+      "target": "function:ai_brain.py:assess_difficulty",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:ai_brain.py",
+      "target": "function:ai_brain.py:_should_use_azure",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:ai_brain.py",
+      "target": "function:ai_brain.py:clean_word",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:ai_brain.py",
+      "target": "function:ai_brain.py:phoneme_similarity",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:ai_brain.py",
+      "target": "function:ai_brain.py:classify_error",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:ai_brain.py",
+      "target": "function:ai_brain.py:_ensure_wav",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:ai_brain.py",
+      "target": "function:ai_brain.py:analyze_audio_with_whisper",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:ai_brain.py",
+      "target": "function:ai_brain.py:analyze_single_word",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:ai_brain.py",
+      "target": "function:ai_brain.py:_analyze_with_whisper",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:ai_brain.py",
+      "target": "function:ai_brain.py:_analyze_single_word_whisper",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:ai_brain.py",
+      "target": "function:ai_brain.py:_analyze_with_azure",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:ai_brain.py",
+      "target": "function:ai_brain.py:_analyze_single_word_azure",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:ai_brain.py",
+      "target": "function:ai_brain.py:generate_sample_audio",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:ai_brain.py",
+      "target": "function:ai_brain.py:send_new_word_tutorial",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app.py",
+      "target": "function:app.py:on_ready",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app.py",
+      "target": "function:app.py:start_keyword_drill",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app.py",
+      "target": "function:app.py:on_message",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:database.py",
+      "target": "function:database.py:get_db_connection",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:database.py",
+      "target": "function:database.py:init_db",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:database.py",
+      "target": "function:database.py:get_or_create_user",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:database.py",
+      "target": "function:database.py:update_user_progress",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:database.py",
+      "target": "function:database.py:get_next_sentence",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:database.py",
+      "target": "function:database.py:save_failed_word",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:database.py",
+      "target": "function:database.py:clear_failed_word",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:database.py",
+      "target": "function:database.py:update_sentence_progress",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:database.py",
+      "target": "function:database.py:log_score",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:database.py",
+      "target": "function:database.py:log_error_pattern",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:database.py",
+      "target": "function:database.py:get_user_stats",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:database.py",
+      "target": "function:database.py:adjust_user_level",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:database.py",
+      "target": "function:database.py:increment_total_sessions",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app.py",
+      "target": "file:ai_brain.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:app.py",
+      "target": "file:database.py",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:_should_use_azure",
+      "target": "function:ai_brain.py:assess_difficulty",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:phoneme_similarity",
+      "target": "function:ai_brain.py:clean_word",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:classify_error",
+      "target": "function:ai_brain.py:clean_word",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:analyze_audio_with_whisper",
+      "target": "function:ai_brain.py:_should_use_azure",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:analyze_audio_with_whisper",
+      "target": "function:ai_brain.py:_analyze_with_azure",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:analyze_audio_with_whisper",
+      "target": "function:ai_brain.py:_analyze_with_whisper",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:analyze_single_word",
+      "target": "function:ai_brain.py:_should_use_azure",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:analyze_single_word",
+      "target": "function:ai_brain.py:_analyze_single_word_azure",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:analyze_single_word",
+      "target": "function:ai_brain.py:_analyze_single_word_whisper",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:_analyze_with_whisper",
+      "target": "function:ai_brain.py:clean_word",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:_analyze_with_whisper",
+      "target": "function:ai_brain.py:classify_error",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:_analyze_with_whisper",
+      "target": "function:ai_brain.py:phoneme_similarity",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:_analyze_single_word_whisper",
+      "target": "function:ai_brain.py:clean_word",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:_analyze_single_word_whisper",
+      "target": "function:ai_brain.py:phoneme_similarity",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:_analyze_with_azure",
+      "target": "function:ai_brain.py:_ensure_wav",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:_analyze_with_azure",
+      "target": "function:ai_brain.py:clean_word",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:_analyze_with_azure",
+      "target": "function:ai_brain.py:classify_error",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:_analyze_single_word_azure",
+      "target": "function:ai_brain.py:_ensure_wav",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:send_new_word_tutorial",
+      "target": "function:ai_brain.py:_ollama_async",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:ai_brain.py:send_new_word_tutorial",
+      "target": "function:ai_brain.py:generate_sample_audio",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:app.py:start_keyword_drill",
+      "target": "function:ai_brain.py:send_new_word_tutorial",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:app.py:on_message",
+      "target": "function:database.py:get_or_create_user",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:app.py:on_message",
+      "target": "function:database.py:get_next_sentence",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:app.py:on_message",
+      "target": "function:app.py:start_keyword_drill",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:app.py:on_message",
+      "target": "function:database.py:update_sentence_progress",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:app.py:on_message",
+      "target": "function:database.py:save_failed_word",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:app.py:on_message",
+      "target": "function:database.py:update_user_progress",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:app.py:on_message",
+      "target": "function:database.py:increment_total_sessions",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:app.py:on_message",
+      "target": "function:database.py:get_user_stats",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:app.py:on_message",
+      "target": "function:ai_brain.py:generate_sample_audio",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:app.py:on_message",
+      "target": "function:database.py:log_score",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:app.py:on_message",
+      "target": "function:database.py:log_error_pattern",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:app.py:on_message",
+      "target": "function:database.py:clear_failed_word",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:app.py:on_message",
+      "target": "function:database.py:adjust_user_level",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:database.py:init_db",
+      "target": "function:database.py:get_db_connection",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:database.py:get_or_create_user",
+      "target": "function:database.py:get_db_connection",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:database.py:update_user_progress",
+      "target": "function:database.py:get_db_connection",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:database.py:update_user_progress",
+      "target": "function:database.py:get_or_create_user",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:database.py:get_next_sentence",
+      "target": "function:database.py:get_db_connection",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:database.py:save_failed_word",
+      "target": "function:database.py:get_db_connection",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:database.py:clear_failed_word",
+      "target": "function:database.py:get_db_connection",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:database.py:update_sentence_progress",
+      "target": "function:database.py:get_db_connection",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:database.py:log_score",
+      "target": "function:database.py:get_db_connection",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:database.py:log_error_pattern",
+      "target": "function:database.py:get_db_connection",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:database.py:get_user_stats",
+      "target": "function:database.py:get_db_connection",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:database.py:adjust_user_level",
+      "target": "function:database.py:get_db_connection",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "function:database.py:increment_total_sessions",
+      "target": "function:database.py:get_db_connection",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:discord.bk",
+      "target": "function:discord.bk:on_ready",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "file:discord.bk",
+      "target": "function:discord.bk:on_message",
+      "type": "contains",
+      "weight": 1,
+      "direction": "forward"
+    },
+    {
+      "source": "document:README.md",
+      "target": "config:requirements.txt",
+      "type": "documents",
+      "weight": 0.5,
+      "direction": "forward"
+    },
+    {
+      "source": "config:requirements.txt",
+      "target": "file:discord.bk",
+      "type": "configures",
+      "weight": 0.6,
+      "direction": "forward"
+    },
+    {
+      "source": "file:discord.bk",
+      "target": "config:requirements.txt",
+      "type": "depends_on",
+      "weight": 0.6,
+      "direction": "forward"
+    }
+  ],
+  "layers": [
+    {
+      "id": "layer:bot-interface",
+      "name": "Bot Interface",
+      "description": "Discord event loop, command handling, session state management, and user interaction flow. This is the entry point that receives voice attachments and orchestrates the learning session lifecycle.",
+      "nodeIds": [
+        "file:app.py",
+        "file:discord.bk"
+      ]
+    },
+    {
+      "id": "layer:ai-processing",
+      "name": "AI & Audio Processing",
+      "description": "Speech-to-text engines (Whisper, Azure), pronunciation scoring, phoneme analysis, error classification, difficulty assessment via Ollama, and Edge-TTS audio generation.",
+      "nodeIds": [
+        "file:ai_brain.py"
+      ]
+    },
+    {
+      "id": "layer:data-persistence",
+      "name": "Data & Persistence",
+      "description": "SQLite database operations, Leitner spaced repetition scheduling, streak tracking, score history logging, error pattern detection, and user level adjustment.",
+      "nodeIds": [
+        "file:database.py"
+      ]
+    },
+    {
+      "id": "layer:project-support",
+      "name": "Project Support",
+      "description": "Project documentation, dependency declarations, and configuration files that support development and deployment.",
+      "nodeIds": [
+        "document:README.md",
+        "config:requirements.txt"
+      ]
+    }
+  ],
+  "tour": [
+    {
+      "order": 1,
+      "title": "Project Overview",
+      "description": "Start with the README to understand the bot's purpose: a Discord-based English pronunciation coach using spaced repetition, smart engine routing, and color-coded ANSI feedback.",
+      "nodeIds": [
+        "document:README.md"
+      ]
+    },
+    {
+      "order": 2,
+      "title": "Application Entry Point",
+      "description": "app.py is the Discord event loop — it handles commands (!daily, !more, !skip, !stop, !stats), manages session state (rounds, fail counts, modes), and orchestrates the learning flow by calling ai_brain and database modules.",
+      "nodeIds": [
+        "file:app.py"
+      ]
+    },
+    {
+      "order": 3,
+      "title": "AI Brain — Scoring Engine",
+      "description": "ai_brain.py contains the core pronunciation analysis: Whisper/Azure speech-to-text, smart engine routing via Ollama difficulty assessment, phoneme similarity scoring with IPA, error type classification, and Edge-TTS audio generation for pre-teaching.",
+      "nodeIds": [
+        "file:ai_brain.py"
+      ]
+    },
+    {
+      "order": 4,
+      "title": "Database — Spaced Repetition & Progress",
+      "description": "database.py manages SQLite persistence: Leitner box scheduling (Box 1/2/3), streak tracking, score history, error pattern detection, auto-level adjustment, and the 'revenge list' of failed words.",
+      "nodeIds": [
+        "file:database.py"
+      ]
+    },
+    {
+      "order": 5,
+      "title": "Dependencies & Legacy",
+      "description": "requirements.txt declares the Python runtime dependencies (whisper, ollama, discord, edge-tts, azure-speech). discord.bk is a backup/earlier version of the bot's event loop.",
+      "nodeIds": [
+        "config:requirements.txt",
+        "file:discord.bk"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "name": "English Pronunciation Bot",
+  "rawDescription": "Discord bot for personalized English pronunciation coaching — records audio, scores each word, and auto-schedules smart spaced repetition reviews.",
+  "readmeHead": "Discord bot luyện phát âm tiếng Anh cá nhân hóa — ghi âm, chấm điểm từng từ, và tự động lên lịch ôn tập thông minh.",
+  "languages": ["python", "markdown"],
+  "frameworks": ["Discord.py", "OpenAI Whisper", "Ollama", "Azure Speech", "Edge-TTS"],
+  "files": [
+    {"path": "ai_brain.py", "language": "python", "sizeLines": 555, "fileCategory": "code"},
+    {"path": "app.py", "language": "python", "sizeLines": 618, "fileCategory": "code"},
+    {"path": "database.py", "language": "python", "sizeLines": 505, "fileCategory": "code"},
+    {"path": "discord.bk", "language": "python", "sizeLines": 164, "fileCategory": "code"},
+    {"path": "README.md", "language": "markdown", "sizeLines": 169, "fileCategory": "docs"},
+    {"path": "requirements.txt", "language": "txt", "sizeLines": 9, "fileCategory": "config"}
+  ],
+  "totalFiles": 6,
+  "filteredByIgnore": 0,
+  "estimatedComplexity": "small",
+  "stats": {
+    "filesScanned": 6,
+    "byCategory": {"code": 4, "docs": 1, "config": 1},
+    "byLanguage": {"python": 4, "markdown": 1, "txt": 1}
+  },
+  "importMap": {
+    "ai_brain.py": [],
+    "app.py": ["ai_brain.py", "database.py"],
+    "database.py": []
+  }
+}

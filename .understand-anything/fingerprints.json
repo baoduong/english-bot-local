@@ -1,0 +1,521 @@
+{
+  "version": "1.0.0",
+  "gitCommitHash": "ffe22997a99c96e3102e8b44a50f65db96dfd138",
+  "generatedAt": "2026-06-08T06:06:30.597Z",
+  "files": {
+    "ai_brain.py": {
+      "filePath": "ai_brain.py",
+      "contentHash": "2132706c8c6cd2e4e580646050243cd41b56343f81b11948bff2e0777df9e42e",
+      "functions": [
+        {
+          "name": "_ollama_generate",
+          "params": [
+            "prompt",
+            "temperature"
+          ],
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "_ollama_async",
+          "params": [
+            "prompt",
+            "temperature"
+          ],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "assess_difficulty",
+          "params": [
+            "text"
+          ],
+          "exported": true,
+          "lineCount": 34
+        },
+        {
+          "name": "_should_use_azure",
+          "params": [
+            "text"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "clean_word",
+          "params": [
+            "word"
+          ],
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "phoneme_similarity",
+          "params": [
+            "word1",
+            "word2"
+          ],
+          "exported": true,
+          "lineCount": 12
+        },
+        {
+          "name": "classify_error",
+          "params": [
+            "expected_word",
+            "heard_word"
+          ],
+          "exported": true,
+          "lineCount": 38
+        },
+        {
+          "name": "_ensure_wav",
+          "params": [
+            "audio_path"
+          ],
+          "exported": true,
+          "lineCount": 14
+        },
+        {
+          "name": "analyze_audio_with_whisper",
+          "params": [
+            "audio_path",
+            "reference_sentence"
+          ],
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "analyze_single_word",
+          "params": [
+            "audio_path",
+            "target_word"
+          ],
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "_analyze_with_whisper",
+          "params": [
+            "audio_path",
+            "reference_sentence"
+          ],
+          "exported": true,
+          "lineCount": 124
+        },
+        {
+          "name": "_analyze_single_word_whisper",
+          "params": [
+            "audio_path",
+            "target_word"
+          ],
+          "exported": true,
+          "lineCount": 61
+        },
+        {
+          "name": "_analyze_with_azure",
+          "params": [
+            "audio_path",
+            "reference_sentence"
+          ],
+          "exported": true,
+          "lineCount": 68
+        },
+        {
+          "name": "_analyze_single_word_azure",
+          "params": [
+            "audio_path",
+            "target_word"
+          ],
+          "exported": true,
+          "lineCount": 34
+        },
+        {
+          "name": "generate_sample_audio",
+          "params": [
+            "text",
+            "output_path",
+            "rate"
+          ],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "send_new_word_tutorial",
+          "params": [
+            "channel",
+            "sentence",
+            "new_word"
+          ],
+          "exported": true,
+          "lineCount": 42
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "whisper",
+          "specifiers": [
+            "whisper"
+          ]
+        },
+        {
+          "source": "difflib",
+          "specifiers": [
+            "difflib"
+          ]
+        },
+        {
+          "source": "eng_to_ipa",
+          "specifiers": [
+            "ipa"
+          ]
+        },
+        {
+          "source": "ollama",
+          "specifiers": [
+            "ollama"
+          ]
+        },
+        {
+          "source": "edge_tts",
+          "specifiers": [
+            "edge_tts"
+          ]
+        },
+        {
+          "source": "discord",
+          "specifiers": [
+            "discord"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "functools",
+          "specifiers": [
+            "functools"
+          ]
+        },
+        {
+          "source": "dotenv",
+          "specifiers": [
+            "load_dotenv"
+          ]
+        }
+      ],
+      "exports": [
+        "_ollama_generate",
+        "_ollama_async",
+        "assess_difficulty",
+        "_should_use_azure",
+        "clean_word",
+        "phoneme_similarity",
+        "classify_error",
+        "_ensure_wav",
+        "analyze_audio_with_whisper",
+        "analyze_single_word",
+        "_analyze_with_whisper",
+        "_analyze_single_word_whisper",
+        "_analyze_with_azure",
+        "_analyze_single_word_azure",
+        "generate_sample_audio",
+        "send_new_word_tutorial"
+      ],
+      "totalLines": 556,
+      "hasStructuralAnalysis": true
+    },
+    "app.py": {
+      "filePath": "app.py",
+      "contentHash": "55ac76c4e4dcfe4b1d729d86c6c6d7d93f467207a851fe99c4d9110648ca7ffb",
+      "functions": [
+        {
+          "name": "on_ready",
+          "params": [],
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "start_keyword_drill",
+          "params": [
+            "channel",
+            "session",
+            "sentence",
+            "new_word"
+          ],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "on_message",
+          "params": [
+            "message"
+          ],
+          "exported": true,
+          "lineCount": 569
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "discord",
+          "specifiers": [
+            "discord"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "requests",
+          "specifiers": [
+            "requests"
+          ]
+        },
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "functools",
+          "specifiers": [
+            "functools"
+          ]
+        },
+        {
+          "source": "dotenv",
+          "specifiers": [
+            "load_dotenv"
+          ]
+        },
+        {
+          "source": "database",
+          "specifiers": [
+            "get_or_create_user",
+            "get_next_sentence",
+            "update_user_progress",
+            "save_failed_word",
+            "update_sentence_progress",
+            "clear_failed_word",
+            "log_score",
+            "log_error_pattern",
+            "get_user_stats",
+            "adjust_user_level",
+            "increment_total_sessions"
+          ]
+        },
+        {
+          "source": "ai_brain",
+          "specifiers": [
+            "analyze_audio_with_whisper",
+            "analyze_single_word",
+            "send_new_word_tutorial",
+            "generate_sample_audio",
+            "ERROR_TYPE_LABELS"
+          ]
+        }
+      ],
+      "exports": [
+        "on_ready",
+        "start_keyword_drill",
+        "on_message"
+      ],
+      "totalLines": 619,
+      "hasStructuralAnalysis": true
+    },
+    "database.py": {
+      "filePath": "database.py",
+      "contentHash": "d67bb4b4d5feb2392f9bd1f7a5ba3d671fb5ca0d08f19ba21f24e3c453431499",
+      "functions": [
+        {
+          "name": "get_db_connection",
+          "params": [],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "init_db",
+          "params": [],
+          "exported": true,
+          "lineCount": 116
+        },
+        {
+          "name": "get_or_create_user",
+          "params": [
+            "user_id",
+            "username"
+          ],
+          "exported": true,
+          "lineCount": 33
+        },
+        {
+          "name": "update_user_progress",
+          "params": [
+            "user_id",
+            "status"
+          ],
+          "exported": true,
+          "lineCount": 22
+        },
+        {
+          "name": "get_next_sentence",
+          "params": [
+            "user_id",
+            "exclude_sentences"
+          ],
+          "exported": true,
+          "lineCount": 89
+        },
+        {
+          "name": "save_failed_word",
+          "params": [
+            "user_id",
+            "word"
+          ],
+          "exported": true,
+          "lineCount": 15
+        },
+        {
+          "name": "clear_failed_word",
+          "params": [
+            "user_id",
+            "word"
+          ],
+          "exported": true,
+          "lineCount": 12
+        },
+        {
+          "name": "update_sentence_progress",
+          "params": [
+            "user_id",
+            "sentence_text",
+            "success"
+          ],
+          "exported": true,
+          "lineCount": 46
+        },
+        {
+          "name": "log_score",
+          "params": [
+            "user_id",
+            "sentence_text",
+            "score"
+          ],
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "log_error_pattern",
+          "params": [
+            "user_id",
+            "error_type",
+            "word"
+          ],
+          "exported": true,
+          "lineCount": 13
+        },
+        {
+          "name": "get_user_stats",
+          "params": [
+            "user_id"
+          ],
+          "exported": true,
+          "lineCount": 71
+        },
+        {
+          "name": "adjust_user_level",
+          "params": [
+            "user_id"
+          ],
+          "exported": true,
+          "lineCount": 34
+        },
+        {
+          "name": "increment_total_sessions",
+          "params": [
+            "user_id"
+          ],
+          "exported": true,
+          "lineCount": 7
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "sqlite3",
+          "specifiers": [
+            "sqlite3"
+          ]
+        },
+        {
+          "source": "datetime",
+          "specifiers": [
+            "datetime",
+            "timedelta"
+          ]
+        }
+      ],
+      "exports": [
+        "get_db_connection",
+        "init_db",
+        "get_or_create_user",
+        "update_user_progress",
+        "get_next_sentence",
+        "save_failed_word",
+        "clear_failed_word",
+        "update_sentence_progress",
+        "log_score",
+        "log_error_pattern",
+        "get_user_stats",
+        "adjust_user_level",
+        "increment_total_sessions"
+      ],
+      "totalLines": 506,
+      "hasStructuralAnalysis": true
+    },
+    "discord.bk": {
+      "filePath": "discord.bk",
+      "contentHash": "5bc5d6c3b5c4856a70162645d7b4f37a576236e52515f874bdf021e5950e7818",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 165,
+      "hasStructuralAnalysis": false
+    },
+    "README.md": {
+      "filePath": "README.md",
+      "contentHash": "1c326fbe8a8889d37c9cce6a7ea080f532cf2812e08283052be040c2c155582f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 170,
+      "hasStructuralAnalysis": true
+    },
+    "requirements.txt": {
+      "filePath": "requirements.txt",
+      "contentHash": "5cd7517550b591fc89f5fdd717327402c4078d851e4aec59682ff0f6556f256f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 10,
+      "hasStructuralAnalysis": false
+    }
+  }
+}
