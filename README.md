@@ -12,7 +12,7 @@ Discord bot luyện phát âm tiếng Anh cá nhân hóa — ghi âm, chấm đi
 - **Danh sách phục thù** — từ sai nặng được lưu lại và ưu tiên xuất hiện buổi học hôm sau
 - **Pre-teaching** — trước khi luyện câu có từ mới, bot giải thích cách phát âm (Ollama) và phát audio mẫu (Edge-TTS)
 - **Streak tracking** — theo dõi chuỗi ngày học liên tục, tự động reset nếu bỏ ngày
-- **2 engine chấm điểm** — Whisper local (mặc định) hoặc Azure Speech (chính xác hơn với accent Việt)
+- **Smart engine routing** — Ollama phân tích độ khó → câu dễ dùng Whisper (free), câu khó mới gọi Azure (tiết kiệm API)
 - **Auto-leveling** — tự động tăng/giảm độ khó dựa trên xu hướng điểm gần nhất
 - **Error pattern detection** — phát hiện lỗi phát âm lặp lại (nuốt phụ âm cuối, lẫn r/l, th sound...)
 - **Flexible rounds** — mặc định 3 hiệp, dùng `!more` để thêm bonus (tối đa 6)
@@ -90,6 +90,17 @@ Hiệp 1 → Ghi âm → Điểm ≥ 80? → Hiệp 2 → Hiệp 3 → 🏆 Hoà
 ---
 
 ## Engine chấm điểm
+
+### Smart Routing (khi bật Azure)
+
+Khi `USE_AZURE_SPEECH=true`, bot **không gọi Azure cho tất cả** — Ollama phân tích độ khó trước:
+
+| Độ khó | Engine | Ví dụ |
+|---|---|---|
+| Simple | Whisper (free) | "Hello", "Good morning", "Thank you" |
+| Complex | Azure (chính xác) | "Throughout", "Entrepreneurship", câu dài/phụ âm khó |
+
+Từ đơn ≤ 6 ký tự → auto simple (không gọi Ollama). Kết quả được cache.
 
 ### Whisper (mặc định — local, miễn phí)
 

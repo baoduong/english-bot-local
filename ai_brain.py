@@ -18,19 +18,64 @@ USE_AZURE = os.getenv("USE_AZURE_SPEECH", "false").lower() == "true"
 AZURE_KEY = os.getenv("AZURE_SPEECH_KEY", "")
 AZURE_REGION = os.getenv("AZURE_SPEECH_REGION", "southeastasia")
 
-# Chỉ import Azure SDK khi được bật, tránh lỗi khi chưa cài
+# Luôn tải Whisper — dùng cho câu dễ ngay cả khi Azure được bật (tiết kiệm API)
+print("🔄 Đang nạp mô hình Whisper vào RAM (Vui lòng đợi)...")
+whisper_model = whisper.load_model("small")
+print("🟩 Mô hình Whisper đã sẵn sàng!")
+
+# Import Azure SDK nếu được bật
 if USE_AZURE and AZURE_KEY:
     try:
         import azure.cognitiveservices.speech as speechsdk
-        print("🔵 Chế độ chấm điểm: Azure Speech Pronunciation Assessment")
+        print("🔵 Azure Speech sẵn sàng (chỉ dùng cho câu/từ khó)")
     except ImportError:
-        print("⚠️ Không tìm thấy azure-cognitiveservices-speech. Fallback về Whisper.")
+        print("⚠️ Không tìm thấy azure-cognitiveservices-speech. Dùng Whisper cho tất cả.")
         USE_AZURE = False
-else:
-    # Tải Whisper local khi không dùng Azure
-    print("🔄 Đang nạp mô hình Whisper vào RAM (Vui lòng đợi)...")
-    whisper_model = whisper.load_model("small")
-    print("🟩 Mô hình Whisper đã sẵn sàng!")
+
+# Cache kết quả phân tích độ khó — tránh gọi Ollama lại cho cùng câu
+_difficulty_cache = {}
+
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma4:31b-cloud")
+
+def assess_difficulty(text):
+    """
+    Dùng Ollama phân tích độ khó phát âm của câu/từ cho người Việt.
+    Trả về: "simple" hoặc "complex"
+    Kết quả được cache để không gọi lại Ollama cho cùng text.
+    """
+    cache_key = text.strip().lower()
+    if cache_key in _difficulty_cache:
+        return _difficulty_cache[cache_key]
+    
+    # Heuristic nhanh cho từ đơn ngắn — không cần gọi LLM
+    words = text.strip().split()
+    if len(words) == 1 and len(words[0]) <= 6:
+        _difficulty_cache[cache_key] = "simple"
+        return "simple"
+    
+    prompt = f"""Analyze pronunciation difficulty of this English text for a Vietnamese speaker.
+Text: "{text}"
+
+Consider: silent letters, consonant clusters (th, str, ght), unusual vowel sounds, word length, stress patterns.
+
+Reply with ONLY one word: "simple" or "complex". No explanation."""
+
+    try:
+        response = ollama.generate(model=OLLAMA_MODEL, prompt=prompt, options={"temperature": 0})
+        answer = response["response"].strip().lower()
+        result = "complex" if "complex" in answer else "simple"
+    except Exception as e:
+        print(f"⚠️ Ollama assess_difficulty error: {e}. Mặc định: simple")
+        result = "simple"
+    
+    _difficulty_cache[cache_key] = result
+    return result
+
+def _should_use_azure(text):
+    """Quyết định có nên dùng Azure không — chỉ dùng cho câu/từ khó"""
+    if not USE_AZURE or not AZURE_KEY:
+        return False
+    return assess_difficulty(text) == "complex"
 
 def clean_word(word):
     """Hàm phụ trợ để xóa dấu câu và viết thường nhằm so khớp chính xác"""
@@ -122,15 +167,19 @@ ANSI_GRAY   = "\u001b[0;30m"
 ANSI_RESET  = "\u001b[0m"
 
 def analyze_audio_with_whisper(audio_path, reference_sentence):
-    """Entry point chính — tự động chọn Azure hoặc Whisper dựa trên .env"""
-    if USE_AZURE and AZURE_KEY:
+    """Entry point chính — smart routing: Ollama phân loại độ khó → Azure (khó) hoặc Whisper (dễ)"""
+    if _should_use_azure(reference_sentence):
+        print(f"🔵 Azure: \"{reference_sentence[:40]}...\"")
         return _analyze_with_azure(audio_path, reference_sentence)
+    print(f"🟢 Whisper: \"{reference_sentence[:40]}...\"")
     return _analyze_with_whisper(audio_path, reference_sentence)
 
 def analyze_single_word(audio_path, target_word):
-    """Entry point cho Word Drill — tự động chọn Azure hoặc Whisper"""
-    if USE_AZURE and AZURE_KEY:
+    """Entry point cho Word Drill — smart routing theo độ khó từ"""
+    if _should_use_azure(target_word):
+        print(f"🔵 Azure drill: \"{target_word}\"")
         return _analyze_single_word_azure(audio_path, target_word)
+    print(f"🟢 Whisper drill: \"{target_word}\"")
     return _analyze_single_word_whisper(audio_path, target_word)
 
 # ============================================================
@@ -139,7 +188,7 @@ def analyze_single_word(audio_path, target_word):
 
 def _analyze_with_whisper(audio_path, reference_sentence):
     """Chấm điểm bằng Whisper small + phoneme similarity (chạy local, không cần internet)"""
-    result = whisper_model.transcribe(audio_path, word_timestamps=True)
+    result = whisper_model.transcribe(audio_path, word_timestamps=True, language="en")
     
     detected_words = []
     for segment in result.get("segments", []):
@@ -264,7 +313,15 @@ def _analyze_with_whisper(audio_path, reference_sentence):
 
 def _analyze_single_word_whisper(audio_path, target_word):
     """Chấm 1 từ bằng Whisper + phoneme similarity"""
-    result = whisper_model.transcribe(audio_path, word_timestamps=True)
+    target_clean = clean_word(target_word)
+    
+    # Hint cho Whisper biết user đang nói từ gì — giảm hallucination trên audio ngắn
+    result = whisper_model.transcribe(
+        audio_path,
+        word_timestamps=True,
+        language="en",
+        initial_prompt=f"The speaker is practicing the word: {target_word}"
+    )
     
     # Gom tất cả từ AI nghe được
     all_words = []
@@ -278,32 +335,42 @@ def _analyze_single_word_whisper(audio_path, target_word):
     if not all_words:
         return False, 0.0, ""
     
-    target_clean = clean_word(target_word)
-    
     # Tìm từ khớp nhất với target trong những gì AI nghe được
     best_match = None
-    best_confidence = 0.0
+    best_prob = 0.0
     for w in all_words:
         if w["text"] == target_clean:
             best_match = w
-            best_confidence = w["confidence"]
+            best_prob = w["confidence"]
             break
     
-    # Nếu không tìm thấy chính xác, dùng phoneme similarity với từ đầu tiên AI nghe được
+    # Nếu không tìm thấy chính xác, tìm từ có phoneme gần nhất
     if not best_match and all_words:
-        best_match = all_words[0]
-        phon_sim = phoneme_similarity(best_match["text"], target_clean)
-        # Điểm = confidence * phoneme_similarity để vừa đo nghe được vừa đo đúng âm
-        best_confidence = best_match["confidence"] * phon_sim
+        best_phon = 0.0
+        for w in all_words:
+            ps = phoneme_similarity(w["text"], target_clean)
+            if ps > best_phon:
+                best_phon = ps
+                best_match = w
+                best_prob = w["confidence"]
     
     heard = best_match["text"] if best_match else ""
-    # Dùng phoneme similarity làm yếu tố quyết định cuối cùng khi Whisper nghe đúng từ
-    if heard == target_clean:
-        passed = best_confidence >= 0.70  # Ngưỡng thấp hơn câu đầy đủ vì drill 1 từ
-    else:
-        # Whisper nghe sai từ → kiểm tra phoneme xem có gần đúng không
-        phon_sim = phoneme_similarity(heard, target_clean)
-        passed = phon_sim >= 0.75 and best_confidence >= 0.50
+    
+    # ── Tính combined score: kết hợp "nghe đúng từ" + "giọng rõ ràng" ──
+    # Điều kiện CẦN: phoneme match (Whisper nghe có gần đúng không?)
+    phon_score = 1.0 if heard == target_clean else phoneme_similarity(heard, target_clean)
+    # Điều kiện ĐỦ: probability (giọng nói rõ ràng không?)
+    prob_score = best_prob
+    
+    # Combined: phoneme chiếm 65% (quan trọng hơn), probability 35%
+    # "brief" đúng + prob 2%:  1.0*0.65 + 0.02*0.35 = 0.657 → 65% → PASS
+    # "live" sai + prob 90%:   0.4*0.65 + 0.90*0.35 = 0.575 → 57% → FAIL
+    # "brief" đúng + prob 80%: 1.0*0.65 + 0.80*0.35 = 0.930 → 93% → PASS
+    combined = phon_score * 0.65 + prob_score * 0.35
+    
+    # Pass khi combined ≥ 0.60 — cả 2 yếu tố đều phải đạt mức tối thiểu
+    passed = combined >= 0.60
+    
     return passed, best_confidence, heard
 
 
@@ -448,7 +515,7 @@ async def send_new_word_tutorial(channel, sentence, new_word):
     Viết cực kỳ ngắn gọn, dưới 50 từ, trình bày bằng các gạch đầu dòng rõ ràng.
     """
     try:
-        response = ollama.generate(model="gemma4:31b-cloud", prompt=prompt)
+        response = ollama.generate(model=OLLAMA_MODEL, prompt=prompt)
         teacher_tip = response["response"]
     except Exception as e:
         print(f"Lỗi gọi Ollama: {e}")

@@ -74,6 +74,7 @@ async def on_message(message):
             "drill_index": 0,
             "drill_fails": 0,
             "drill_passed": 0,
+            "drill_done": False,  # True sau khi đã drill xong 1 lần — không drill lại cùng câu
             "used_sentences": [next_task["sentence"]],  # Track câu đã bốc trong phiên
             "session_stats": {"passed_first_try": 0, "needed_drill": 0, "skipped": 0}  # Thống kê cuối phiên
         }
@@ -143,8 +144,7 @@ async def on_message(message):
             session["sentence"] = next_task["sentence"]
             session["new_word"] = next_task["new_word"]
             session["used_sentences"].append(next_task["sentence"])
-            
-            await message.channel.send(f"⏭️ Bỏ qua! Sang **HIỆP {session['round']}/{session['max_rounds']}**:")
+            session["drill_done"] = False
             if next_task["new_word"]:
                 await send_new_word_tutorial(message.channel, next_task["sentence"], next_task["new_word"])
             else:
@@ -191,6 +191,7 @@ async def on_message(message):
         session["used_sentences"].append(next_task["sentence"])
         session["fail_count"] = 0
         session["mode"] = "sentence"
+        session["drill_done"] = False
         await message.channel.send(
             f"💪 **HIỆP BONUS {session['round']}/{session['max_rounds']}!** Tinh thần chiến đấu cao!\n"
         )
@@ -328,10 +329,11 @@ async def on_message(message):
                     session["drill_passed"] = 0
 
                     if pass_rate >= 0.5:
-                        # Đủ từ pass → tự tin thử lại câu đầy đủ
+                        # Đủ từ pass → cho thử lại câu 1 lần cuối cùng
                         session["fail_count"] = 0
+                        session["drill_done"] = True  # Đánh dấu đã drill — nếu vẫn fail sẽ auto-skip
                         await message.channel.send(
-                            f"💪 **Đã luyện {passed_count}/{total_drilled} từ!** Sẵn sàng rồi, thử đọc lại cả câu nào:\n"
+                            f"💪 **Đã luyện {passed_count}/{total_drilled} từ!** Thử đọc lại cả câu **1 lần cuối** nào:\n"
                             f"👉 **`{session['sentence']}`**"
                         )
                     else:
@@ -447,16 +449,52 @@ async def on_message(message):
                 # PHÁT ÂM CHƯA ĐẠT CHUẨN (<80 điểm)
                 session["fail_count"] += 1
                 
-                if session["fail_count"] >= 3:
-                    # 🟥 THẤT BẠI QUÁ 3 LẦN -> CŨNG ĐẨY LỊCH CÂU NÀY SANG NGÀY MAI ĐỂ ĐỔI CÂU KHÁC
+                # Nếu đã drill xong mà vẫn fail cả câu → auto-advance, không lặp vô tận
+                if session["drill_done"]:
                     update_sentence_progress(user_id, session["sentence"], success=False)
-
-                    # 🚨 ĐẶC CÁCH CỨU TRỢ: SAI QUÁ 3 LẦN TRÊN MỘT CÂU
                     if session["new_word"]:
-                        save_failed_word(user_id, session["new_word"]) # Đẩy từ khó vào sổ đen để mai phục thù
+                        save_failed_word(user_id, session["new_word"])
                     
                     session["round"] += 1
                     session["fail_count"] = 0
+                    session["drill_done"] = False
+                    
+                    await message.channel.send(
+                        f"🤝 Bạn đã drill từng từ rồi nhưng ghép câu vẫn khó — "
+                        f"**không sao cả**, đây là chuyện bình thường! Fluency (nói trôi chảy) cần thời gian.\n"
+                        f"Thầy cất câu này vào *Danh sách phục thù* để ôn lại sau nhé! 💪"
+                    )
+                    
+                    if session["round"] > session["max_rounds"]:
+                        new_streak = update_user_progress(user_id, status="completed")
+                        increment_total_sessions(user_id)
+                        stats = session["session_stats"]
+                        await message.channel.send(
+                            f"🏆 **Hoàn thành!** 🔥 Chuỗi: `{new_streak} ngày`\n"
+                            f"📊 Pass: {stats['passed_first_try']} | Drill: {stats['needed_drill']} | Skip: {stats['skipped']}\n"
+                            f"💡 Gõ `!more` để thêm hiệp bonus!"
+                        )
+                        session["mode"] = "completed"
+                    else:
+                        next_task = get_next_sentence(user_id, exclude_sentences=session["used_sentences"])
+                        session["sentence"] = next_task["sentence"]
+                        session["new_word"] = next_task["new_word"]
+                        session["used_sentences"].append(next_task["sentence"])
+                        await message.channel.send(f"⏭️ Sang **HIỆP {session['round']}/{session['max_rounds']}** với câu mới:")
+                        if next_task["new_word"]:
+                            await send_new_word_tutorial(message.channel, next_task["sentence"], next_task["new_word"])
+                        else:
+                            await message.channel.send(f"👉 **`{session['sentence']}`**")
+
+                elif session["fail_count"] >= 3:
+                    # 🟥 THẤT BẠI QUÁ 3 LẦN (chưa từng drill) -> ĐỔI CÂU
+                    update_sentence_progress(user_id, session["sentence"], success=False)
+                    if session["new_word"]:
+                        save_failed_word(user_id, session["new_word"])
+                    
+                    session["round"] += 1
+                    session["fail_count"] = 0
+                    session["drill_done"] = False
                     
                     await message.channel.send(
                         f"🤝 **Giáo viên AI can thiệp:** Câu này có vẻ đang làm khó cơ miệng của bạn. "
@@ -485,7 +523,7 @@ async def on_message(message):
                         else:
                             await message.channel.send(f"👉 **`{session['sentence']}`**")
 
-                elif session["fail_count"] == 2 and problem_words:
+                elif session["fail_count"] == 2 and problem_words and not session["drill_done"]:
                     # 🟡 SAI LẦN 2 VÀ CÓ TỪ KHÓ -> KÍCH HOẠT WORD DRILL MODE
                     session["mode"] = "word_drill"
                     session["drill_words"] = problem_words
