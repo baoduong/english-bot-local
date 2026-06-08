@@ -34,6 +34,16 @@ async def on_ready():
     print("🚀 Sẵn sàng tóm file ghi âm từ iPhone của bạn!")
     print("--------------------------------------------------")
 
+async def start_keyword_drill(channel, session, sentence, new_word):
+    """
+    Khi câu có từ mới: giảng bài + chuyển sang keyword_drill mode.
+    User phải đọc đúng từ khóa trước khi đọc cả câu.
+    """
+    await send_new_word_tutorial(channel, sentence, new_word)
+    session["mode"] = "keyword_drill"
+    session["keyword_target"] = new_word
+    session["keyword_fails"] = 0
+
 @client.event
 async def on_message(message):
     # Bỏ qua tin nhắn do chính Bot tự gửi để tránh vòng lặp vô hạn
@@ -83,9 +93,9 @@ async def on_message(message):
         
         await message.channel.send(f"🔥 **Chuỗi ngày học liên tục:** `{streak} ngày`. Giữ vững ngọn lửa nhé!")
         
-        # Nếu câu có chứa từ mới hoặc từ sai nặng -> Kích hoạt chế độ giảng bài trước khi bắt đọc
+        # Nếu câu có chứa từ mới hoặc từ sai nặng -> Drill từ khóa trước khi đọc cả câu
         if next_task["new_word"]:
-            await send_new_word_tutorial(message.channel, next_task["sentence"], next_task["new_word"])
+            await start_keyword_drill(message.channel, user_sessions[user_id], next_task["sentence"], next_task["new_word"])
         else:
             await message.reply(
                 f"🎯 **HIỆP 1/3 - Nhấn giữ micro và đọc to câu sau:**\n"
@@ -148,7 +158,7 @@ async def on_message(message):
             session["used_sentences"].append(next_task["sentence"])
             session["drill_done"] = False
             if next_task["new_word"]:
-                await send_new_word_tutorial(message.channel, next_task["sentence"], next_task["new_word"])
+                await start_keyword_drill(message.channel, session, next_task["sentence"], next_task["new_word"])
             else:
                 await message.channel.send(f"👉 **`{session['sentence']}`**")
         return
@@ -198,7 +208,7 @@ async def on_message(message):
             f"💪 **HIỆP BONUS {session['round']}/{session['max_rounds']}!** Tinh thần chiến đấu cao!\n"
         )
         if next_task["new_word"]:
-            await send_new_word_tutorial(message.channel, next_task["sentence"], next_task["new_word"])
+            await start_keyword_drill(message.channel, session, next_task["sentence"], next_task["new_word"])
         else:
             await message.channel.send(f"👉 **`{session['sentence']}`**")
         return
@@ -269,6 +279,50 @@ async def on_message(message):
                     f.write(audio_data)
             except Exception as e:
                 await message.reply(f"❌ Lỗi tải file ghi âm từ Discord: {e}")
+                return
+
+            # ====================================================
+            # NHÁNH 0: KEYWORD DRILL - Đọc từ khóa trước khi đọc câu
+            # ====================================================
+            if session["mode"] == "keyword_drill":
+                keyword = session["keyword_target"]
+                passed, confidence, heard = await asyncio.get_event_loop().run_in_executor(
+                    None, functools.partial(analyze_single_word, temp_audio_path, keyword)
+                )
+                
+                if os.path.exists(temp_audio_path):
+                    os.remove(temp_audio_path)
+
+                if passed:
+                    session["mode"] = "sentence"
+                    session["keyword_fails"] = 0
+                    await message.reply(
+                        f"✅ **{keyword.upper()}** — Phát âm chuẩn! (`{int(confidence*100)}%`)\n"
+                        f"Giờ hãy đọc **cả câu** nhé:\n"
+                        f"👉 **`{session['sentence']}`**"
+                    )
+                else:
+                    session["keyword_fails"] += 1
+                    if session["keyword_fails"] >= 3:
+                        # Fail 3 lần từ khóa → cho qua luôn, đọc cả câu
+                        session["mode"] = "sentence"
+                        session["keyword_fails"] = 0
+                        heard_text = f" (AI nghe thành: *{heard}*)" if heard and heard != keyword.lower() else ""
+                        await message.reply(
+                            f"🤝 Từ **{keyword.upper()}** khá khó{heard_text}. Thử đọc cả câu luôn nhé — "
+                            f"đặt trong ngữ cảnh có khi lại dễ hơn!\n"
+                            f"👉 **`{session['sentence']}`**"
+                        )
+                    else:
+                        heard_text = f" (AI nghe thành: *{heard}*)" if heard and heard != keyword.lower() else ""
+                        await message.reply(
+                            f"❌ Chưa đạt{heard_text}. Nghe lại mẫu rồi thử lần nữa! "
+                            f"(Lần {session['keyword_fails']}/3)"
+                        )
+                        sample_path = f"keyword_sample_{user_id}.mp3"
+                        if await generate_sample_audio(keyword, sample_path):
+                            await message.channel.send(file=discord.File(sample_path))
+                            os.remove(sample_path)
                 return
 
             # ====================================================
@@ -371,7 +425,7 @@ async def on_message(message):
                             session["used_sentences"].append(next_task["sentence"])
                             await message.channel.send(f"⏭️ Sang **HIỆP {session['round']}/{session['max_rounds']}** với câu mới:")
                             if next_task["new_word"]:
-                                await send_new_word_tutorial(message.channel, next_task["sentence"], next_task["new_word"])
+                                await start_keyword_drill(message.channel, session, next_task["sentence"], next_task["new_word"])
                             else:
                                 await message.channel.send(f"👉 **`{session['sentence']}`**")
                 return
@@ -445,7 +499,7 @@ async def on_message(message):
                     session["used_sentences"].append(next_task["sentence"])
                     
                     if next_task["new_word"]:
-                        await send_new_word_tutorial(message.channel, next_task["sentence"], next_task["new_word"])
+                        await start_keyword_drill(message.channel, session, next_task["sentence"], next_task["new_word"])
                     else:
                         await message.channel.send(
                             f"💪 Làm tốt lắm! Tiếp tục sang **HIỆP {session['round']}/{session['max_rounds']}**:\n"
@@ -488,7 +542,7 @@ async def on_message(message):
                         session["used_sentences"].append(next_task["sentence"])
                         await message.channel.send(f"⏭️ Sang **HIỆP {session['round']}/{session['max_rounds']}** với câu mới:")
                         if next_task["new_word"]:
-                            await send_new_word_tutorial(message.channel, next_task["sentence"], next_task["new_word"])
+                            await start_keyword_drill(message.channel, session, next_task["sentence"], next_task["new_word"])
                         else:
                             await message.channel.send(f"👉 **`{session['sentence']}`**")
 
@@ -525,7 +579,7 @@ async def on_message(message):
                         session["used_sentences"].append(next_task["sentence"])
                         await message.channel.send(f"⏭️ Hãy bước sang **HIỆP {session['round']}/{session['max_rounds']}** với một thử thách mới tươi mới hơn:")
                         if next_task["new_word"]:
-                            await send_new_word_tutorial(message.channel, next_task["sentence"], next_task["new_word"])
+                            await start_keyword_drill(message.channel, session, next_task["sentence"], next_task["new_word"])
                         else:
                             await message.channel.send(f"👉 **`{session['sentence']}`**")
 
