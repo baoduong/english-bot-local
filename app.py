@@ -9,7 +9,9 @@ from dotenv import load_dotenv
 from database import (get_or_create_user, get_next_sentence, update_user_progress,
                       save_failed_word, update_sentence_progress, clear_failed_word,
                       log_score, log_error_pattern, get_user_stats, adjust_user_level,
-                      increment_total_sessions)
+                      increment_total_sessions,
+                      record_word_attempts_batch, get_weak_words,
+                      record_phoneme_errors_batch, get_weak_phonemes)
 from ai_brain import (analyze_audio_with_whisper, analyze_single_word, send_new_word_tutorial,
                       generate_sample_audio, ERROR_TYPE_LABELS)
 
@@ -251,6 +253,22 @@ async def on_message(message):
         if stats.get("mastered"):
             msg += f"\n✅ Từ đã thuộc (Box 3): **{stats['mastered']}/{stats.get('total_learned', '?')}**\n"
         
+        weak_words = get_weak_words(user_id, limit=5)
+        if weak_words:
+            msg += "\n📝 **Từ hay sai nhất:**\n"
+            for ww in weak_words:
+                msg += f"  • *{ww['word']}* — TB {ww['avg_score']}/100, pass {ww['success_rate']}% ({ww['attempt_count']} lần)\n"
+
+        weak_phonemes = get_weak_phonemes(user_id, limit=5)
+        if weak_phonemes:
+            msg += "\n🔤 **Âm hay lỗi nhất:**\n"
+            for wp in weak_phonemes:
+                examples = ", ".join(wp["example_words"][:3]) if wp["example_words"] else ""
+                msg += f"  • /{wp['phoneme']}/ — {wp['error_count']} lần"
+                if examples:
+                    msg += f" (vd: {examples})"
+                msg += "\n"
+
         await message.reply(msg)
         return
 
@@ -433,7 +451,7 @@ async def on_message(message):
             # ====================================================
             # NHÁNH 2: SENTENCE MODE - Chấm cả câu (logic gốc)
             # ====================================================
-            score, ansi_feedback, error_details, problem_words, error_types = await asyncio.get_event_loop().run_in_executor(
+            score, ansi_feedback, error_details, problem_words, error_types, word_scores = await asyncio.get_event_loop().run_in_executor(
                 None, functools.partial(analyze_audio_with_whisper, temp_audio_path, session["sentence"])
             )
             
@@ -445,6 +463,18 @@ async def on_message(message):
             log_score(user_id, session["sentence"], score)
             for word, err_type in error_types:
                 log_error_pattern(user_id, err_type, word)
+
+            if word_scores:
+                record_word_attempts_batch(user_id, word_scores)
+
+            _ERR_PHONEME = {"th_sound": "θ", "r_l_confusion": "ɹ", "sh_sound": "ʃ", "final_consonant": "C#", "vowel_stress": "V"}
+            phoneme_errs = []
+            for word, err_type in error_types:
+                ph = _ERR_PHONEME.get(err_type)
+                if ph:
+                    phoneme_errs.append((ph, word))
+            if phoneme_errs:
+                record_phoneme_errors_batch(user_id, phoneme_errs)
                 
             # Gộp kết quả chấm điểm thành 1-2 message thay vì 3-4
             progress_bar = "🟩" * session["round"] + "⬜" * (session["max_rounds"] - session["round"])
