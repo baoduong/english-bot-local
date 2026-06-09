@@ -31,6 +31,7 @@ from db.recommendations import record_recommendation, mark_completed, mark_skipp
 from db.shadowing import pick_content_shadowing
 from db.connection import get_db_connection
 from db.goals import get_learning_goals, set_learning_goals
+from db.sessions import save_session, load_all_sessions, delete_session
 from analysis.goal_alignment import GOAL_PROFILES, VALID_GOAL_TYPES, get_goal_progress
 
 load_dotenv()
@@ -45,6 +46,16 @@ client = discord.Client(intents=intents)
 # 2. Bộ nhớ đệm lưu trạng thái học trong ngày của các User
 # Cấu trúc: { user_id: { "round": 1, "sentence": "...", "new_word": "...", "fail_count": 0 } }
 user_sessions = {}
+
+
+def _persist_session(user_id):
+    if user_id in user_sessions:
+        save_session(user_id, user_sessions[user_id])
+
+
+def _end_session(user_id):
+    user_sessions.pop(user_id, None)
+    delete_session(user_id)
 
 
 def _write_session_analytics(user_id, session):
@@ -144,7 +155,8 @@ def _cleanup_stale_sessions():
         except (ValueError, TypeError):
             stale.append(uid)
     for uid in stale:
-        del user_sessions[uid]
+        user_sessions.pop(uid, None)
+        delete_session(uid)
 
 
 def _decide_round_type(session):
@@ -247,6 +259,7 @@ async def _advance_to_next_round(channel, user_id, session):
             if await generate_sample_audio(item["text"], sample_path):
                 await channel.send(file=discord.File(sample_path))
                 os.remove(sample_path)
+            _persist_session(user_id)
             return
         round_type = "sentence"
 
@@ -273,6 +286,7 @@ async def _advance_to_next_round(channel, user_id, session):
             if await generate_sample_audio(rec["text"], sample_path):
                 await channel.send(file=discord.File(sample_path))
                 os.remove(sample_path)
+            _persist_session(user_id)
             return
         round_type = "sentence"
 
@@ -291,9 +305,15 @@ async def _advance_to_next_round(channel, user_id, session):
             f"🎯 **Hiệp {round_num}/{max_rounds} — Đọc câu:**\n"
             f"👉 **`{next_task['sentence']}`**"
         )
+    _persist_session(user_id)
 
 @client.event
 async def on_ready():
+    global user_sessions
+    restored = load_all_sessions()
+    if restored:
+        user_sessions.update(restored)
+        print(f"[restore] Loaded {len(restored)} active session(s) from DB")
     print("--------------------------------------------------")
     print(f"🤖 Bot Giáo Viên AI đã kích hoạt thành công!")
     print(f"🎯 Tên Bot: {client.user.name} (ID: {client.user.id})")
@@ -486,6 +506,7 @@ async def on_message(message):
                 f"💡 Gõ `!more` để thêm hiệp bonus, hoặc nghỉ ngơi tới mai!"
             )
             session["mode"] = "completed"
+            _persist_session(user_id)
         else:
             await _advance_to_next_round(message.channel, user_id, session)
         return
@@ -508,7 +529,7 @@ async def on_message(message):
         else:
             streak_msg = "⚠️ Chưa hoàn thành hiệp nào nên không tính streak."
         
-        del user_sessions[user_id]
+        _end_session(user_id)
         await message.reply(f"🛑 **Đã thoát phiên học.**\n{streak_msg}\nGõ `!go` khi muốn quay lại nhé!")
         return
 
@@ -522,7 +543,7 @@ async def on_message(message):
         session = user_sessions[user_id]
         if session["max_rounds"] >= 8:
             await message.reply("🛑 Đã đạt tối đa **8 hiệp** cho 1 phiên. Nghỉ ngơi rồi quay lại vào ngày mai nhé! 💤")
-            del user_sessions[user_id]
+            _end_session(user_id)
             return
         session["max_rounds"] += 1
         session["round"] = session["max_rounds"]
@@ -962,7 +983,7 @@ async def on_message(message):
             rec_id = session.get("current_rec_id")
             if rec_id:
                 mark_skipped(rec_id)
-            del user_sessions[user_id]
+            _end_session(user_id)
             await message.reply("⏭️ Đã bỏ qua. Gõ `!recommend` để xem gợi ý tiếp theo.")
             return
 
@@ -1169,12 +1190,13 @@ async def on_message(message):
                                     f"💡 Gõ `!more` để thêm hiệp bonus!"
                                 )
                                 session["mode"] = "completed"
+                                _persist_session(user_id)
                             else:
                                 await _advance_to_next_round(message.channel, user_id, session)
                         else:
                             result_msg += "\n\n✅ Tốt lắm! Gõ `!shadow` để thử câu khác, hoặc `!go` để vào phiên chính."
                             await message.reply(result_msg)
-                            del user_sessions[user_id]
+                            _end_session(user_id)
                     else:
                         result_msg += "\n\n🔄 Chưa đạt 80 — nghe lại mẫu rồi thử lần nữa! Hoặc gõ `!skip` để bỏ qua."
                         await message.reply(result_msg)
@@ -1227,12 +1249,13 @@ async def on_message(message):
                                     f"💡 Gõ `!more` để thêm hiệp bonus!"
                                 )
                                 session["mode"] = "completed"
+                                _persist_session(user_id)
                             else:
                                 await _advance_to_next_round(message.channel, user_id, session)
                         else:
                             result_msg += "\n\n✅ Xuất sắc! Gõ `!recommend` để nhận gợi ý tiếp, hoặc `!go` để vào phiên chính."
                             await message.reply(result_msg)
-                            del user_sessions[user_id]
+                            _end_session(user_id)
                     else:
                         result_msg += "\n\n🔄 Chưa đạt 80. Thử lại hoặc gõ `!skip` để bỏ qua."
                         await message.reply(result_msg)
@@ -1334,6 +1357,7 @@ async def on_message(message):
                                     f"💡 Gõ `!more` để thêm hiệp bonus!"
                                 )
                                 session["mode"] = "completed"
+                                _persist_session(user_id)
                             else:
                                 await _advance_to_next_round(message.channel, user_id, session)
                     return
@@ -1406,6 +1430,7 @@ async def on_message(message):
                             f"💡 Gõ `!more` để thêm hiệp bonus, hoặc nghỉ ngơi tới mai! 💤"
                         )
                         session["mode"] = "completed"
+                        _persist_session(user_id)
                     else:
                         await _advance_to_next_round(message.channel, user_id, session)
                 else:
@@ -1442,6 +1467,7 @@ async def on_message(message):
                                 f"💡 Gõ `!more` để thêm hiệp bonus!"
                             )
                             session["mode"] = "completed"
+                            _persist_session(user_id)
                         else:
                             await _advance_to_next_round(message.channel, user_id, session)
 
@@ -1474,6 +1500,7 @@ async def on_message(message):
                                 f"💡 Gõ `!more` để thêm hiệp bonus!"
                             )
                             session["mode"] = "completed"
+                            _persist_session(user_id)
                         else:
                             await _advance_to_next_round(message.channel, user_id, session)
 

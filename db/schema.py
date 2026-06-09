@@ -241,6 +241,15 @@ def init_db():
         )
     ''')
 
+    # 18. Active sessions — persist session state across restarts
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS active_sessions (
+            user_id TEXT PRIMARY KEY,
+            session_data TEXT NOT NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     # Nạp dữ liệu mẫu nếu kho câu hỏi đang trống
     cursor.execute("SELECT COUNT(*) FROM sentences")
     if cursor.fetchone()[0] == 0:

@@ -20,6 +20,7 @@ from db.content_usage import record_usage, get_usage_history, get_unused_segment
 from db.recommendations import (record_recommendation, mark_completed, mark_skipped,
                                 get_recent_recommendations, get_recently_recommended_ids)
 from db.goals import get_learning_goals, set_learning_goals, get_primary_goal, clear_learning_goals
+from db.sessions import save_session, load_all_sessions, delete_session
 
 init_db()
 seed_shadowing_items()
