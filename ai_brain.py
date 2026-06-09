@@ -32,7 +32,7 @@ async def send_new_word_tutorial(channel, sentence, new_word):
         teacher_tip = f"• Hãy chú ý nhấn đúng trọng âm của từ: **{new_word}**."
 
     output_audio_path = "teacher_sample.mp3"
-    has_audio = await generate_sample_audio(sentence, output_audio_path)
+    has_audio = await generate_sample_audio(new_word, output_audio_path)
 
     await channel.send(
         f"🆕 **HỌC TỪ MỚI CÙNG GIÁO VIÊN AI:**\n"
