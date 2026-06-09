@@ -2,5 +2,6 @@
 /__pycache__
 /.github
 /english_learner.db
-/.omo
+/.omo/*
 __pycache__/
+/.omo/run-continuation
