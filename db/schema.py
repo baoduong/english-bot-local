@@ -124,124 +124,7 @@ def init_db():
         )
     ''')
 
-    # 10. Shadowing items — kho câu shadowing (P2: C8)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS shadowing_items (
-            id TEXT PRIMARY KEY,
-            text TEXT NOT NULL,
-            difficulty INTEGER DEFAULT 1,
-            source TEXT DEFAULT 'manual',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-
-    # 11. Shadowing attempts — kết quả từng lần shadowing (P2: C8)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS shadowing_attempts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            shadowing_item_id TEXT NOT NULL,
-            score REAL,
-            completed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (shadowing_item_id) REFERENCES shadowing_items(id)
-        )
-    ''')
-
-    # 12. Content items — kho nội dung học tập (P3: C1+C2)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS content_items (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            source_type TEXT DEFAULT 'manual',
-            difficulty INTEGER DEFAULT 1,
-            tags TEXT DEFAULT '[]',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-
-    # 13. Content segments — câu/đoạn con thuộc content item (P3: C1+C2)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS content_segments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            content_item_id TEXT NOT NULL,
-            text TEXT NOT NULL,
-            position INTEGER NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (content_item_id) REFERENCES content_items(id)
-        )
-    ''')
-
-    # 14. Content usage tracking — ghi nhận khi nội dung được sử dụng (P3.5: C15)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS content_usage (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            segment_id INTEGER NOT NULL,
-            usage_type TEXT NOT NULL,
-            used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (segment_id) REFERENCES content_segments(id)
-        )
-    ''')
-
-    # Migration: thêm cột difficulty_score và phoneme_metadata cho content_segments (P3.5: C16, C17)
-    try:
-        cursor.execute("ALTER TABLE content_segments ADD COLUMN difficulty_score INTEGER DEFAULT 0")
-    except Exception:
-        pass
-    try:
-        cursor.execute("ALTER TABLE content_segments ADD COLUMN phoneme_metadata TEXT DEFAULT '[]'")
-    except Exception:
-        pass
-
-    # 15. Recommendation feedback — theo dõi hiệu quả gợi ý (P4: C24)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS recommendation_feedback (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            segment_id INTEGER NOT NULL,
-            recommended_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            completed INTEGER DEFAULT 0,
-            skipped INTEGER DEFAULT 0,
-            score_after_practice REAL,
-            FOREIGN KEY (segment_id) REFERENCES content_segments(id)
-        )
-    ''')
-
-    # Migration: thêm recommendation_reasons cho audit (P4.5: C37)
-    try:
-        cursor.execute("ALTER TABLE recommendation_feedback ADD COLUMN recommendation_reasons TEXT DEFAULT '[]'")
-    except Exception:
-        pass
-    try:
-        cursor.execute("ALTER TABLE recommendation_feedback ADD COLUMN recommendation_score REAL DEFAULT 0")
-    except Exception:
-        pass
-
-    # 16. Session analytics — theo dõi hiệu quả phiên học (P4.5: C35)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS session_analytics (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            completed_at DATETIME,
-            rounds_completed INTEGER DEFAULT 0,
-            rounds_total INTEGER DEFAULT 0,
-            avg_score REAL DEFAULT 0,
-            content_segments_used INTEGER DEFAULT 0
-        )
-    ''')
-
-    # 17. Learning goals — mục tiêu học tập của user (P4.5: Goal System)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS learning_goals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            goal_type TEXT NOT NULL,
-            priority TEXT DEFAULT 'secondary',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-
-    # 18. Active sessions — persist session state across restarts
+    # 10. Active sessions — persist session state across restarts
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS active_sessions (
             user_id TEXT PRIMARY KEY,
@@ -249,6 +132,72 @@ def init_db():
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    # 11. Bảng Curriculums — lộ trình học tập cá nhân hóa
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS curriculums (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            goal_title TEXT NOT NULL,
+            goal_description TEXT,
+            status TEXT DEFAULT 'active',
+            current_phase_number INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed_at DATETIME,
+            interface_language TEXT DEFAULT 'vi'
+        )
+    ''')
+
+    # 12. Bảng Phases — các giai đoạn trong lộ trình
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS phases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            curriculum_id INTEGER NOT NULL,
+            phase_number INTEGER NOT NULL,
+            theme TEXT NOT NULL,
+            vocabulary TEXT NOT NULL,
+            milestones TEXT NOT NULL,
+            status TEXT DEFAULT 'pending',
+            regeneration_count INTEGER DEFAULT 0,
+            generated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed_at DATETIME,
+            UNIQUE(curriculum_id, phase_number)
+        )
+    ''')
+
+    # 13. Bảng Phase Content — nội dung luyện tập chi tiết cho từng phase
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS phase_content (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            phase_id INTEGER NOT NULL,
+            sentence TEXT NOT NULL,
+            target_phonemes TEXT,
+            target_words TEXT,
+            difficulty_score INTEGER,
+            attempt_count INTEGER DEFAULT 0,
+            last_score REAL,
+            mastered_at DATETIME
+        )
+    ''')
+
+    # 14. Bảng Onboarding Conversations — lưu lịch sử hội thoại onboarding
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS onboarding_conversations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            turn_number INTEGER NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, turn_number)
+        )
+    ''')
+
+    # Các chỉ mục (Indexes) để tối ưu truy vấn
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_curriculums_user ON curriculums(user_id, status)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_phases_curriculum ON phases(curriculum_id, phase_number)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_phase_content_phase ON phase_content(phase_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_onboarding_user ON onboarding_conversations(user_id, turn_number)')
 
     # Nạp dữ liệu mẫu nếu kho câu hỏi đang trống
     cursor.execute("SELECT COUNT(*) FROM sentences")
@@ -278,6 +227,25 @@ def init_db():
     else:
         # Migration: gán difficulty cho sentences cũ chưa có difficulty
         cursor.execute("UPDATE sentences SET difficulty = 2 WHERE difficulty IS NULL OR difficulty = 0")
+
+    # Migration: Mở rộng bảng users cho hệ thống Onboarding & Curriculum
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN created_at DATETIME")
+        cursor.execute("UPDATE users SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN onboarding_completed_at DATETIME")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN active_curriculum_id INTEGER")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN interface_language TEXT DEFAULT 'vi'")
+    except Exception:
+        pass
 
     conn.commit()
     conn.close()

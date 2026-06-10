@@ -1,4 +1,25 @@
-from engines.ollama import assess_difficulty
+from engines.ollama_client import OllamaClient, OllamaUnavailableError
+
+_ollama_client = OllamaClient()
+_difficulty_cache = {}
+
+
+def assess_difficulty(text):
+    """Dùng Ollama phân tích độ khó phát âm cho người Việt. Trả về 'simple' hoặc 'complex'."""
+    if text in _difficulty_cache:
+        return _difficulty_cache[text]
+    words = text.strip().split()
+    if len(words) == 1 and len(words[0]) <= 6:
+        _difficulty_cache[text] = "simple"
+        return "simple"
+    try:
+        prompt = f'Classify the pronunciation difficulty of this English text for a Vietnamese learner: "{text}"\nReply with ONLY one word: "simple" or "complex".'
+        result = _ollama_client.chat_sync([{"role": "user", "content": prompt}])
+        difficulty = "complex" if "complex" in result.lower() else "simple"
+    except (OllamaUnavailableError, Exception):
+        difficulty = "simple"
+    _difficulty_cache[text] = difficulty
+    return difficulty
 from engines.azure import USE_AZURE, AZURE_KEY, analyze_with_azure, analyze_single_word_azure
 from engines.whisper import analyze_with_whisper, analyze_single_word_whisper
 

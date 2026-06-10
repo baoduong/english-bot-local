@@ -1,7 +1,7 @@
 import whisper
 import difflib
 from analysis.phonemes import clean_word, phoneme_similarity
-from analysis.errors import classify_error, ANSI_GREEN, ANSI_YELLOW, ANSI_RED, ANSI_GRAY, ANSI_RESET
+from analysis.errors import classify_error, ANSI_GREEN, ANSI_YELLOW, ANSI_RED, ANSI_GRAY, ANSI_RESET, get_articulatory_tip
 
 print("🔄 Đang nạp mô hình Whisper vào RAM (Vui lòng đợi)...")
 whisper_model = whisper.load_model("small")
@@ -50,25 +50,31 @@ def analyze_with_whisper(audio_path, reference_sentence):
                     formatted_words.append(f"{ANSI_YELLOW}{orig_text}{ANSI_RESET}")
                     correct_points += 0.6
                     word_scores[clean_word(orig_text)] = {"score": 60, "passed": False}
-                    error_list.append(f"⚠️ Từ **{orig_text}**: Bạn phát âm chưa rõ trọng âm hoặc nuốt âm đuôi.")
+                    err_type = classify_error(orig_text, word_data["text"])
+                    error_types.append((clean_word(orig_text), err_type))
+                    tip = get_articulatory_tip(err_type)
+                    error_list.append(f"⚠️ Từ **{orig_text}**: Chưa chuẩn.\n{tip}")
                     problem_words.append(clean_word(orig_text))
-                    error_types.append((clean_word(orig_text), classify_error(orig_text, word_data["text"])))
                 else:
                     phon_sim = phoneme_similarity(word_data["text"], orig_text)
                     if phon_sim >= 0.75:
                         formatted_words.append(f"{ANSI_YELLOW}{orig_text}{ANSI_RESET}")
                         correct_points += 0.5
                         word_scores[clean_word(orig_text)] = {"score": 50, "passed": False}
-                        error_list.append(f"⚠️ Từ **{orig_text}**: Gần đúng nhưng cần phát âm rõ ràng hơn.")
+                        err_type = classify_error(orig_text, word_data["text"])
+                        error_types.append((clean_word(orig_text), err_type))
+                        tip = get_articulatory_tip(err_type)
+                        error_list.append(f"⚠️ Từ **{orig_text}**: Gần đúng nhưng chưa rõ.\n{tip}")
                         problem_words.append(clean_word(orig_text))
-                        error_types.append((clean_word(orig_text), classify_error(orig_text, word_data["text"])))
                     else:
                         formatted_words.append(f"{ANSI_RED}{orig_text}{ANSI_RESET}")
                         correct_points += 0.1
                         word_scores[clean_word(orig_text)] = {"score": 10, "passed": False}
-                        error_list.append(f"❌ Từ **{orig_text}**: Phát âm sai hoặc méo tiếng, AI khó nhận diện.")
+                        err_type = classify_error(orig_text, word_data["text"])
+                        error_types.append((clean_word(orig_text), err_type))
+                        tip = get_articulatory_tip(err_type)
+                        error_list.append(f"❌ Từ **{orig_text}**: Phát âm sai.\n{tip}")
                         problem_words.append(clean_word(orig_text))
-                        error_types.append((clean_word(orig_text), classify_error(orig_text, word_data["text"])))
 
         elif tag == 'replace':
             pairs = list(zip(range(i1, i2), range(j1, j2)))
@@ -80,21 +86,23 @@ def analyze_with_whisper(audio_path, reference_sentence):
                     formatted_words.append(f"{ANSI_YELLOW}{expected}{ANSI_RESET}")
                     correct_points += 0.5
                     word_scores[clean_word(expected)] = {"score": 50, "passed": False}
-                    error_list.append(f"⚠️ Từ **{expected}**: Gần đúng (AI nghe thành *{heard_word}*), cần phát âm rõ hơn.")
+                    tip = get_articulatory_tip(classify_error(expected, heard_word))
+                    error_list.append(f"⚠️ Từ **{expected}**: Gần đúng (AI nghe: *{heard_word}*).\n{tip}")
                     problem_words.append(clean_word(expected))
                     error_types.append((clean_word(expected), classify_error(expected, heard_word)))
                 else:
                     formatted_words.append(f"{ANSI_RED}{expected}{ANSI_RESET}")
                     correct_points += 0.0
                     word_scores[clean_word(expected)] = {"score": 0, "passed": False}
-                    error_list.append(f"❌ Từ **{expected}**: Sai âm (AI nghe thành *{heard_word}*).")
+                    tip = get_articulatory_tip(classify_error(expected, heard_word))
+                    error_list.append(f"❌ Từ **{expected}**: Sai âm (AI nghe: *{heard_word}*).\n{tip}")
                     problem_words.append(clean_word(expected))
                     error_types.append((clean_word(expected), classify_error(expected, heard_word)))
             for idx in range(i1 + len(pairs), i2):
                 missing_word = ref_words_original[idx]
                 formatted_words.append(f"{ANSI_GRAY}[{missing_word}]{ANSI_RESET}")
                 word_scores[clean_word(missing_word)] = {"score": 0, "passed": False}
-                error_list.append(f"🔲 Từ **{missing_word}**: Bị nuốt hoàn toàn.")
+                error_list.append(f"🔲 Từ **{missing_word}**: Bị nuốt hoàn toàn.\n{get_articulatory_tip('omission')}")
                 problem_words.append(clean_word(missing_word))
                 error_types.append((clean_word(missing_word), "omission"))
 
@@ -103,7 +111,7 @@ def analyze_with_whisper(audio_path, reference_sentence):
                 missing_word = ref_words_original[idx]
                 formatted_words.append(f"{ANSI_GRAY}[{missing_word}]{ANSI_RESET}")
                 word_scores[clean_word(missing_word)] = {"score": 0, "passed": False}
-                error_list.append(f"🔲 Từ **{missing_word}**: Bạn bị bỏ sót hoặc nuốt chữ hoàn toàn.")
+                error_list.append(f"🔲 Từ **{missing_word}**: Bị nuốt hoàn toàn.\n{get_articulatory_tip('omission')}")
                 problem_words.append(clean_word(missing_word))
                 error_types.append((clean_word(missing_word), "omission"))
 

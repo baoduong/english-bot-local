@@ -4,10 +4,12 @@ from analysis.phonemes import clean_word, phoneme_similarity
 from analysis.errors import classify_error, ERROR_TYPE_LABELS
 from analysis.pronunciation import analyze_audio as analyze_audio_with_whisper, analyze_single_word
 from engines.tts import generate_sample_audio
-from engines.ollama import _ollama_async
+from engines.ollama_client import OllamaClient
 
 import discord
 import os
+
+_ollama_client = OllamaClient()
 
 
 async def send_new_word_tutorial(channel, sentence, new_word):
@@ -25,8 +27,7 @@ async def send_new_word_tutorial(channel, sentence, new_word):
     Viết cực kỳ ngắn gọn, dưới 50 từ, trình bày bằng các gạch đầu dòng rõ ràng.
     """
     try:
-        response = await _ollama_async(prompt)
-        teacher_tip = response["response"]
+        teacher_tip = await _ollama_client.chat([{"role": "user", "content": prompt}])
     except Exception as e:
         print(f"Lỗi gọi Ollama: {e}")
         teacher_tip = f"• Hãy chú ý nhấn đúng trọng âm của từ: **{new_word}**."

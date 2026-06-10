@@ -12,11 +12,20 @@ def get_or_create_user(user_id, username):
 
     if not user:
         cursor.execute(
-            "INSERT INTO users (user_id, username, streak_count, last_study_date) VALUES (?, ?, 0, NULL)",
+            "INSERT INTO users (user_id, username, streak_count, last_study_date, created_at, interface_language) VALUES (?, ?, 0, NULL, CURRENT_TIMESTAMP, 'vi')",
             (user_id, username)
         )
         conn.commit()
-        user = {"user_id": user_id, "username": username, "streak": 0, "last_study_date": None}
+        user = {
+            "user_id": user_id, 
+            "username": username, 
+            "streak": 0, 
+            "last_study_date": None,
+            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # Approximation for the return dict
+            "onboarding_completed_at": None,
+            "active_curriculum_id": None,
+            "interface_language": "vi"
+        }
     else:
         # Kiểm tra xem có bị đứt chuỗi (Streak) không
         # Nếu ngày học cuối cùng trước hôm qua -> Reset chuỗi về 0
@@ -31,7 +40,16 @@ def get_or_create_user(user_id, username):
                 cursor.execute("UPDATE users SET streak_count = 0 WHERE user_id = ?", (user_id,))
                 conn.commit()
 
-        user = {"user_id": user["user_id"], "username": user["username"], "streak": streak, "last_study_date": user["last_study_date"]}
+        user = {
+            "user_id": user["user_id"], 
+            "username": user["username"], 
+            "streak": streak, 
+            "last_study_date": user["last_study_date"],
+            "created_at": user["created_at"],
+            "onboarding_completed_at": user["onboarding_completed_at"],
+            "active_curriculum_id": user["active_curriculum_id"],
+            "interface_language": user["interface_language"]
+        }
 
     conn.close()
     return user
@@ -102,5 +120,52 @@ def increment_total_sessions(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET total_sessions = total_sessions + 1 WHERE user_id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+
+
+def mark_onboarding_complete(user_id, curriculum_id):
+    """Đánh dấu học viên đã hoàn thành onboarding và gán giáo trình kích hoạt"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE users SET onboarding_completed_at = CURRENT_TIMESTAMP, active_curriculum_id = ? WHERE user_id = ?",
+        (curriculum_id, user_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def clear_active_curriculum(user_id):
+    """Xoá giáo trình hiện tại và reset trạng thái onboarding (để làm lại từ đầu)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE users SET active_curriculum_id = NULL, onboarding_completed_at = NULL WHERE user_id = ?",
+        (user_id,)
+    )
+    conn.commit()
+    conn.close()
+
+
+def needs_onboarding(user_id):
+    """Kiểm tra xem học viên có cần thực hiện onboarding không"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT onboarding_completed_at FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    # Nếu không tìm thấy user hoặc onboarding_completed_at là NULL -> Cần onboarding
+    if not row or row["onboarding_completed_at"] is None:
+        return True
+    return False
+
+
+def set_interface_language(user_id, language):
+    """Cập nhật ngôn ngữ giao diện cho học viên"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET interface_language = ? WHERE user_id = ?", (language, user_id))
     conn.commit()
     conn.close()

@@ -59,3 +59,32 @@ ANSI_YELLOW = "\u001b[0;33m"
 ANSI_RED = "\u001b[0;31m"
 ANSI_GRAY = "\u001b[0;30m"
 ANSI_RESET = "\u001b[0m"
+
+
+ARTICULATORY_TIPS = {
+    "omission": "Đọc chậm lại, chú ý phát âm rõ từng từ. Không bỏ sót từ nào trong câu.",
+    "final_consonant": "Giữ âm cuối! Đặt lưỡi/môi đúng vị trí âm cuối (s, t, d, z, k, p) rồi thả hơi nhẹ. Người Việt thường 'nuốt' âm cuối — hãy kéo dài âm cuối thêm 1 giây.",
+    "th_sound": "Đặt ĐẦU LƯỠI giữa 2 hàm răng (lộ ra ngoài), thổi hơi nhẹ. Khác với 't' tiếng Việt — lưỡi phải chạm RÌA răng, không phải sau răng.",
+    "r_l_confusion": "Âm /r/: Cuộn đầu lưỡi về phía sau, KHÔNG chạm vào đâu cả, tròn môi nhẹ. Âm /l/: Đầu lưỡi chạm lợi trên (ngay sau răng cửa). Hai âm này hoàn toàn khác nhau!",
+    "vowel_stress": "Chú ý TRỌNG ÂM! Âm tiết được nhấn phải đọc TO hơn + DÀI hơn + CAO hơn. Tiếng Việt dùng thanh điệu, tiếng Anh dùng trọng âm — cần tập phân biệt.",
+    "sh_sound": "Âm /ʃ/ (sh): Tròn môi, lưỡi cong lên nhưng KHÔNG chạm lợi. Giống âm 'x' tiếng Việt nhưng môi tròn hơn và lưỡi lùi về sau hơn.",
+    "general": "Nghe lại audio mẫu thật kỹ, chú ý nhịp điệu và cách nhấn nhá của từng từ.",
+}
+
+VIETNAMESE_L1_COMPARISON = {
+    "final_consonant": "Tiếng Việt chỉ có âm cuối /p, t, k, m, n, ŋ/. Tiếng Anh có thêm /s, z, d, f, v, l, θ/ và cụm phụ âm cuối (-sts, -lth). Cần tập giữ âm cuối.",
+    "th_sound": "Tiếng Việt KHÔNG có âm /θ/. Người Việt thường thay bằng 't' hoặc 'f'. Cần đặt lưỡi giữa răng — vị trí hoàn toàn mới.",
+    "r_l_confusion": "Một số phương ngữ Việt không phân biệt r/l. Tiếng Anh phân biệt rõ: 'right' ≠ 'light', 'read' ≠ 'lead'.",
+    "vowel_stress": "Tiếng Việt là ngôn ngữ có thanh điệu (6 dấu). Tiếng Anh dùng trọng âm (stress) — âm tiết nhấn phải to + dài + cao hơn.",
+    "sh_sound": "Âm /ʃ/ gần giống 'x' trong 'xin' nhưng môi tròn hơn. Người Việt hay nói 's' thay vì 'sh'.",
+}
+
+
+def get_articulatory_tip(error_type):
+    """Returns formatted articulatory tip for a given error type."""
+    tip = ARTICULATORY_TIPS.get(error_type, ARTICULATORY_TIPS["general"])
+    l1 = VIETNAMESE_L1_COMPARISON.get(error_type)
+    result = f"💡 **Mẹo phát âm:** {tip}"
+    if l1:
+        result += f"\n🇻🇳 **So với tiếng Việt:** {l1}"
+    return result
