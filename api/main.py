@@ -147,3 +147,12 @@ app.include_router(onboarding.router)
 app.include_router(curriculum.router)
 app.include_router(practice.router)
 app.include_router(progress.router)
+
+
+def _include_websocket_router() -> None:
+    from api.ws import router as ws_router
+
+    app.include_router(ws_router)
+
+
+_include_websocket_router()
