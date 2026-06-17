@@ -161,3 +161,60 @@ Database: `english_learner.db` (SQLite, tự tạo khi chạy lần đầu)
 | `sentences` | Kho câu luyện tập tổng hợp |
 | `score_history` | Lịch sử chấm điểm |
 | `error_patterns` | Các lỗi phát âm thường gặp |
+
+---
+
+## iPhone App
+
+Native iOS client thay thế Discord UI, kết nối đến backend qua Wi-Fi.
+
+### Yêu cầu
+
+- Xcode 15+ / Swift 5.9+
+- macOS 13+ (để build Swift Package)
+- Python 3.9+ với FastAPI (cho API gateway)
+- ffmpeg: `brew install ffmpeg`
+- Ollama đang chạy với model `gemma4:31b-cloud`
+
+### Build iOS App
+
+```bash
+cd ios/EnglishBot
+swift build
+```
+
+### Chạy API Gateway
+
+```bash
+# Activate virtualenv
+source venv/bin/activate
+
+# Start gateway
+uvicorn api.main:app --host 0.0.0.0 --port 8000
+```
+
+Hoặc dùng launchd daemon (xem `docs/deployment/api-daemon.md`).
+
+### Cấu hình
+
+App kết nối đến `http://localhost:8000` mặc định. Thay đổi host/port trong app settings (manual entry).
+
+### Flow
+
+```
+Launch → Onboarding Chat → Goal Confirm → Curriculum View → Practice Session → Progress
+```
+
+### API Endpoints
+
+| Endpoint | Chức năng |
+|---|---|
+| `POST /onboarding/start` | Bắt đầu onboarding |
+| `POST /onboarding/respond` | Gửi tin nhắn |
+| `POST /onboarding/confirm` | Xác nhận mục tiêu |
+| `GET /curriculum/current` | Xem lộ trình hiện tại |
+| `POST /practice/session/start` | Bắt đầu phiên luyện tập |
+| `POST /practice/audio` | Upload audio (.m4a) để chấm điểm |
+| `GET /progress` | Xem tiến độ học tập |
+| `GET /health` | Kiểm tra trạng thái hệ thống |
+| `WS /ws/session` | WebSocket streaming |
