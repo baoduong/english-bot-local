@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, UUID4
 class ErrorEnvelope(BaseModel):
     error_code: str
     message: str
+    request_id: Optional[str] = None
     detail: Optional[Any] = None
 
 

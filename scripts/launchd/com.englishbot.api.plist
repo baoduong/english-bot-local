@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+  <!-- ── Identity ──────────────────────────────────────────────────────── -->
+  <key>Label</key>
+  <string>com.englishbot.api</string>
+
+  <!-- ── Command ───────────────────────────────────────────────────────── -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Volumes/BAODUONG/english-bot-local/venv/bin/uvicorn</string>
+    <string>api.main:app</string>
+    <string>--host</string>
+    <string>0.0.0.0</string>
+    <string>--port</string>
+    <string>8000</string>
+    <string>--log-level</string>
+    <string>info</string>
+  </array>
+
+  <!-- ── Working directory ─────────────────────────────────────────────── -->
+  <key>WorkingDirectory</key>
+  <string>/Volumes/BAODUONG/english-bot-local</string>
+
+  <!-- ── Environment variables ─────────────────────────────────────────── -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>API_HOST</key>
+    <string>0.0.0.0</string>
+    <key>API_PORT</key>
+    <string>8000</string>
+    <key>LOG_PATH</key>
+    <string>/Volumes/BAODUONG/english-bot-local/logs/api.log</string>
+    <key>DB_PATH</key>
+    <string>/Volumes/BAODUONG/english-bot-local/english_learner.db</string>
+    <key>OLLAMA_MODEL</key>
+    <string>gemma4:31b-cloud</string>
+    <!-- Load remaining secrets from the project .env at runtime via shell -->
+    <!-- DISCORD_BOT_TOKEN, USE_AZURE_SPEECH, AZURE_SPEECH_KEY, AZURE_SPEECH_REGION -->
+    <!-- are picked up automatically because dotenv is loaded in the app. -->
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
+    <key>PYTHONPATH</key>
+    <string>/Volumes/BAODUONG/english-bot-local</string>
+  </dict>
+
+  <!-- ── Stdio ──────────────────────────────────────────────────────────── -->
+  <key>StandardOutPath</key>
+  <string>/Volumes/BAODUONG/english-bot-local/logs/api.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Volumes/BAODUONG/english-bot-local/logs/api.stderr.log</string>
+
+  <!-- ── Restart policy ────────────────────────────────────────────────── -->
+  <!-- Restart automatically if the process exits (exit code 0 or non-zero) -->
+  <key>KeepAlive</key>
+  <true/>
+
+  <!-- Throttle rapid restart loops: wait 10 s before re-launching -->
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <!-- ── Launch at load ────────────────────────────────────────────────── -->
+  <!-- Start immediately when launchctl load is called -->
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- ── Resource limits ───────────────────────────────────────────────── -->
+  <key>SoftResourceLimits</key>
+  <dict>
+    <!-- Max open file descriptors (sockets + DB + logs) -->
+    <key>NumberOfFiles</key>
+    <integer>4096</integer>
+  </dict>
+
+</dict>
+</plist>

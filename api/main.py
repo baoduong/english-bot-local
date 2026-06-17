@@ -9,6 +9,7 @@ Wires together:
 from __future__ import annotations
 
 import logging
+import time
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -18,12 +19,14 @@ from fastapi.responses import JSONResponse
 from engines.ollama_client import OllamaUnavailableError, OllamaSchemaError
 from db.connection import get_db_connection
 from db.sessions import load_all_sessions
+from api.middleware import CorrelationIDMiddleware
 from api.routers import health, users, onboarding, curriculum, practice, progress
 
 logger = logging.getLogger(__name__)
 
-# ─── Startup/shutdown flag ────────────────────────────────────────────────────
+# ─── Startup/shutdown flags ───────────────────────────────────────────────────
 _whisper_loaded: bool = False
+_start_time: float = time.monotonic()
 
 
 # ─── Lifespan ─────────────────────────────────────────────────────────────────
@@ -39,7 +42,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Shutdown:
       1. Signal Whisper model to release GPU/CPU memory.
     """
-    global _whisper_loaded
+    global _whisper_loaded, _start_time
+    _start_time = time.monotonic()
 
     # 1. DB init — ensure all tables exist
     try:
@@ -96,6 +100,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(CorrelationIDMiddleware)
+
 
 # ─── Exception handlers ───────────────────────────────────────────────────────
 
@@ -103,16 +109,14 @@ app = FastAPI(
 async def ollama_unavailable_handler(
     request: Request, exc: OllamaUnavailableError
 ) -> JSONResponse:
-    """
-    Converts OllamaUnavailableError into HTTP 503.
-    Triggered when Ollama is unreachable or all retries are exhausted.
-    """
-    logger.error("[OllamaUnavailableError] %s", exc)
+    request_id: str = getattr(request.state, "request_id", "unknown")
+    logger.error("[OllamaUnavailableError] [%s] %s", request_id, exc)
     return JSONResponse(
         status_code=503,
         content={
             "error_code": "OLLAMA_DOWN",
             "message": "Ollama service is unavailable. Please ensure Ollama is running and try again.",
+            "request_id": request_id,
             "detail": str(exc),
         },
     )
@@ -122,16 +126,14 @@ async def ollama_unavailable_handler(
 async def ollama_schema_handler(
     request: Request, exc: OllamaSchemaError
 ) -> JSONResponse:
-    """
-    Converts OllamaSchemaError into HTTP 500.
-    Triggered when Ollama returns a response that fails schema validation.
-    """
-    logger.error("[OllamaSchemaError] %s", exc)
+    request_id: str = getattr(request.state, "request_id", "unknown")
+    logger.error("[OllamaSchemaError] [%s] %s", request_id, exc)
     return JSONResponse(
         status_code=500,
         content={
             "error_code": "AI_SCHEMA_ERROR",
             "message": "The AI model returned an unexpected response format. Please retry.",
+            "request_id": request_id,
             "detail": str(exc),
         },
     )
