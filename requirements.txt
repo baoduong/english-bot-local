@@ -7,3 +7,6 @@ python-dotenv
 eng-to-ipa
 azure-cognitiveservices-speech
 pydub
+fastapi
+uvicorn[standard]
+python-multipart
