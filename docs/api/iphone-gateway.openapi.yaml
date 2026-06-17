@@ -1,0 +1,1074 @@
+openapi: 3.1.0
+info:
+  title: iPhone Gateway API
+  version: 1.0.0
+  summary: Trusted-LAN HTTP and WebSocket gateway replacing the Discord bot transport.
+  description: |
+    OpenAPI contract for the iPhone-native gateway that replaces the Discord bot interface.
+
+    Scope covers the full learner lifecycle: registration, onboarding conversation,
+    goal confirmation, curriculum generation, practice sessions, audio scoring,
+    progress retrieval, health checks, and real-time WebSocket events.
+
+    Long-running operations in v1 remain blocking by design. Curriculum generation
+    may take 30-90 seconds while Ollama produces phase plans and sentence content;
+    clients should show a loading spinner instead of expecting an async job model.
+servers:
+  - url: http://192.168.1.10:8000
+    description: Example trusted LAN deployment
+security:
+  - XApiKeyPlaceholder: []
+tags:
+  - name: Users
+  - name: Onboarding
+  - name: Curriculum
+  - name: Practice
+  - name: Progress
+  - name: System
+  - name: WebSocket
+paths:
+  /users/register:
+    post:
+      tags: [Users]
+      summary: Register a new iPhone learner profile
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistrationRequest'
+            examples:
+              default:
+                value:
+                  username: Bao Duong
+                  display_name: Bảo
+                  interface_language: vi
+                  device_name: Bao-iPhone
+      responses:
+        '201':
+          description: Learner profile created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRegistrationResponse'
+              examples:
+                created:
+                  value:
+                    user:
+                      user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                      username: Bao Duong
+                      display_name: Bảo
+                      interface_language: vi
+                      created_at: '2026-06-17T08:00:00Z'
+                      onboarding_completed_at: null
+                      active_curriculum_id: null
+                      current_level: 1
+                      total_sessions: 0
+                      streak_count: 0
+                    next_action: onboarding_required
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /onboarding/start:
+    post:
+      tags: [Onboarding]
+      summary: Start onboarding conversation
+      description: Maps the Discord `!go` flow for new users into a dedicated onboarding session.
+      operationId: startOnboarding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingStartRequest'
+            examples:
+              default:
+                value:
+                  user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                  resume_if_exists: true
+      responses:
+        '200':
+          description: Onboarding session active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingTurnResponse'
+              examples:
+                firstTurn:
+                  value:
+                    session:
+                      user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                      mode: onboarding
+                      onboarding_turn: 1
+                      expires_at: '2026-06-18T08:00:00Z'
+                    assistant_message:
+                      turn_number: 2
+                      role: assistant
+                      content: Chào bạn! Mình muốn hiểu rõ mục tiêu phát âm tiếng Anh của bạn. Bạn thường cần nói tiếng Anh trong bối cảnh nào?
+                    history_preview:
+                      - turn_number: 1
+                        role: user
+                        content: Bắt đầu onboarding
+                      - turn_number: 2
+                        role: assistant
+                        content: Chào bạn! Mình muốn hiểu rõ mục tiêu phát âm tiếng Anh của bạn. Bạn thường cần nói tiếng Anh trong bối cảnh nào?
+                    pending_goal_synthesis: null
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /onboarding/respond:
+    post:
+      tags: [Onboarding]
+      summary: Continue onboarding conversation
+      operationId: respondOnboarding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingRespondRequest'
+            examples:
+              reply:
+                value:
+                  user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                  message: Em cần phát âm tốt hơn khi họp code review với team nước ngoài.
+      responses:
+        '200':
+          description: Next onboarding question or synthesized goal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingRespondResponse'
+              examples:
+                question:
+                  value:
+                    session:
+                      user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                      mode: onboarding
+                      onboarding_turn: 3
+                    result_type: question
+                    assistant_message:
+                      turn_number: 4
+                      role: assistant
+                      content: Trong các buổi code review đó, bạn thấy mình khó nhất ở âm nào hoặc kiểu từ nào?
+                    pending_goal_synthesis: null
+                synthesis:
+                  value:
+                    session:
+                      user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                      mode: awaiting_goal_confirmation
+                      onboarding_turn: 6
+                    result_type: synthesis
+                    assistant_message:
+                      turn_number: 8
+                      role: assistant
+                      content: Mình đã tóm tắt mục tiêu học của bạn. Nếu đúng, hãy xác nhận để tạo lộ trình nhé.
+                    pending_goal_synthesis:
+                      goal_title: Phát âm tự tin trong code review
+                      goal_description: Cải thiện phát âm rõ ràng khi trình bày issue, phản hồi review và thảo luận giải pháp với team quốc tế.
+                      suggested_phase_count: 4
+                      key_themes: [code reviews, daily standups, presenting fixes]
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /onboarding/confirm:
+    post:
+      tags: [Onboarding]
+      summary: Confirm or reject synthesized goal
+      description: Positive confirmations block until curriculum generation completes in v1.
+      operationId: confirmOnboarding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingConfirmRequest'
+            examples:
+              confirm:
+                value:
+                  user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                  confirmed: true
+      responses:
+        '200':
+          description: Goal accepted or rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingConfirmResponse'
+              examples:
+                confirmed:
+                  value:
+                    status: confirmed
+                    loading:
+                      blocking: true
+                      message: Generating phase 1 curriculum. Keep spinner visible until response completes.
+                      estimated_seconds: 60
+                    curriculum:
+                      curriculum_id: 42
+                      status: active
+                      goal_title: Phát âm tự tin trong code review
+                      goal_description: Cải thiện phát âm rõ ràng khi trình bày issue, phản hồi review và thảo luận giải pháp với team quốc tế.
+                      interface_language: vi
+                      current_phase_number: 1
+                    phase:
+                      phase_id: 101
+                      phase_number: 1
+                      theme: Code review essentials
+                      status: active
+                      regeneration_count: 0
+                      vocabulary:
+                        - word: regression
+                          ipa: /rɪˈɡreʃ.ən/
+                          vietnamese_gloss: lỗi hồi quy
+                          example_sentence: We need to avoid regression in this patch.
+                      milestones:
+                        - description: Nói rõ các từ kỹ thuật phổ biến trong code review.
+                          criteria: Đạt ít nhất 80 điểm ở 8/12 câu.
+                      sentence_count_target: 12
+                    first_practice_item:
+                      content_id: 9001
+                      sentence: We need to review the regression before merging this fix.
+                      target_phonemes: [/r/, /v/]
+                      target_words: [review, regression]
+                      difficulty_score: 2
+                    onboarding_history_cleared: true
+                rejected:
+                  value:
+                    status: rejected
+                    message: Goal rejected. Start onboarding again to refine the target.
+                    onboarding_history_cleared: true
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /onboarding/history:
+    get:
+      tags: [Onboarding]
+      summary: Get onboarding conversation history
+      operationId: getOnboardingHistory
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Ordered onboarding turns
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingHistoryResponse'
+              examples:
+                history:
+                  value:
+                    user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                    mode: awaiting_goal_confirmation
+                    turns:
+                      - turn_number: 1
+                        role: user
+                        content: Bắt đầu onboarding
+                      - turn_number: 2
+                        role: assistant
+                        content: Bạn cần dùng tiếng Anh trong bối cảnh nào nhiều nhất?
+                    pending_goal_synthesis:
+                      goal_title: Phát âm tự tin trong code review
+                      goal_description: Cải thiện phát âm rõ ràng khi trình bày issue, phản hồi review và thảo luận giải pháp với team quốc tế.
+                      suggested_phase_count: 4
+                      key_themes: [code reviews, daily standups, presenting fixes]
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /curriculum/current:
+    get:
+      tags: [Curriculum]
+      summary: Get current active curriculum
+      operationId: getCurrentCurriculum
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Current curriculum and active phase summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentCurriculumResponse'
+              examples:
+                current:
+                  value:
+                    curriculum:
+                      curriculum_id: 42
+                      user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                      status: active
+                      goal_title: Phát âm tự tin trong code review
+                      goal_description: Cải thiện phát âm rõ ràng khi trình bày issue, phản hồi review và thảo luận giải pháp với team quốc tế.
+                      interface_language: vi
+                      current_phase_number: 1
+                      created_at: '2026-06-17T08:03:00Z'
+                      completed_at: null
+                    active_phase:
+                      phase_id: 101
+                      phase_number: 1
+                      theme: Code review essentials
+                      status: active
+                      regeneration_count: 0
+                      progress:
+                        total: 12
+                        attempted: 5
+                        mastered: 3
+                        avg_score: 77.4
+                        struggling_words:
+                          - We need to review the regression before merging this fix.
+                    next_item:
+                      content_id: 9002
+                      sentence: Please describe the issue before proposing a fix.
+                      target_phonemes: [/z/, /f/]
+                      target_words: [describe, fix]
+                      difficulty_score: 2
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /curriculum/generate:
+    post:
+      tags: [Curriculum]
+      summary: Generate or regenerate curriculum content
+      description: This request blocks in v1; clients should show a loading state while waiting.
+      operationId: generateCurriculum
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CurriculumGenerateRequest'
+            examples:
+              generate:
+                value:
+                  user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                  source: manual_regeneration
+                  curriculum_id: 42
+                  phase_number: 2
+                  reason: User requested fresh content for the same goal.
+      responses:
+        '200':
+          description: Curriculum phase generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurriculumGenerateResponse'
+              examples:
+                generated:
+                  value:
+                    loading:
+                      blocking: true
+                      message: Generating curriculum content via Ollama in the same request.
+                      estimated_seconds: 75
+                    curriculum:
+                      curriculum_id: 42
+                      status: active
+                      current_phase_number: 2
+                    phase:
+                      phase_id: 102
+                      phase_number: 2
+                      theme: Explaining trade-offs
+                      status: active
+                      regeneration_count: 0
+                      vocabulary:
+                        - word: trade-off
+                          ipa: /ˈtreɪd.ɒf/
+                          vietnamese_gloss: sự đánh đổi
+                          example_sentence: We need to discuss the trade-off carefully.
+                      milestones:
+                        - description: Phát âm rõ các cụm mô tả quyết định kỹ thuật.
+                          criteria: Điểm trung bình phase đạt từ 75 trở lên.
+                      sentence_count_target: 12
+                    content_items:
+                      - content_id: 9101
+                        sentence: This trade-off improves performance but increases complexity.
+                        target_phonemes: [/tr/, /ks/]
+                        target_words: [trade-off, complexity]
+                        difficulty_score: 3
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /curriculum/phase/{phase_id}:
+    get:
+      tags: [Curriculum]
+      summary: Get detailed phase data
+      operationId: getCurriculumPhase
+      parameters:
+        - $ref: '#/components/parameters/PhaseIdPath'
+      responses:
+        '200':
+          description: Phase metadata and practice items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhaseDetailResponse'
+              examples:
+                phase:
+                  value:
+                    phase:
+                      phase_id: 101
+                      curriculum_id: 42
+                      phase_number: 1
+                      theme: Code review essentials
+                      status: active
+                      regeneration_count: 0
+                      vocabulary:
+                        - word: regression
+                          ipa: /rɪˈɡreʃ.ən/
+                          vietnamese_gloss: lỗi hồi quy
+                          example_sentence: We need to avoid regression in this patch.
+                      milestones:
+                        - description: Nói rõ các từ kỹ thuật phổ biến trong code review.
+                          criteria: Đạt ít nhất 80 điểm ở 8/12 câu.
+                      progress:
+                        total: 12
+                        attempted: 6
+                        mastered: 4
+                        avg_score: 79.2
+                        struggling_words:
+                          - Please describe the issue before proposing a fix.
+                    content_items:
+                      - content_id: 9001
+                        sentence: We need to review the regression before merging this fix.
+                        target_phonemes: [/r/, /v/]
+                        target_words: [review, regression]
+                        difficulty_score: 2
+                        attempt_count: 2
+                        last_score: 84
+                        mastered_at: '2026-06-17T08:20:00Z'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /curriculum/archive:
+    post:
+      tags: [Curriculum]
+      summary: Archive current curriculum and reset onboarding state
+      operationId: archiveCurriculum
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CurriculumArchiveRequest'
+            examples:
+              archive:
+                value:
+                  user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                  confirm: true
+                  reason: Learner wants a new speaking goal for interviews.
+      responses:
+        '200':
+          description: Curriculum archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurriculumArchiveResponse'
+              examples:
+                archived:
+                  value:
+                    archived_curriculum_id: 42
+                    status: archived
+                    onboarding_required: true
+                    message: Current curriculum archived. Start onboarding to define the next goal.
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /practice/session/start:
+    post:
+      tags: [Practice]
+      summary: Start or resume practice session
+      description: Maps the returning-user `!go` path into `curriculum_practice`.
+      operationId: startPracticeSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PracticeSessionStartRequest'
+            examples:
+              start:
+                value:
+                  user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                  resume_if_exists: true
+      responses:
+        '200':
+          description: Practice session ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeSessionStateResponse'
+              examples:
+                started:
+                  value:
+                    session:
+                      user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                      mode: curriculum_practice
+                      round: 1
+                      fail_count: 0
+                      started_at: '2026-06-17T08:30:00Z'
+                    curriculum:
+                      curriculum_id: 42
+                      current_phase_number: 1
+                      phase_theme: Code review essentials
+                    current_item:
+                      content_id: 9002
+                      sentence: Please describe the issue before proposing a fix.
+                      target_phonemes: [/z/, /f/]
+                      target_words: [describe, fix]
+                      difficulty_score: 2
+                    progress:
+                      total: 12
+                      attempted: 5
+                      mastered: 3
+                      avg_score: 77.4
+                      struggling_words:
+                        - We need to review the regression before merging this fix.
+                    sample_audio:
+                      audio_id: teacher-sample-9002
+                      content_type: audio/mpeg
+                      duration_ms: 2940
+                      url: /practice/audio/sample?user_id=5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab&content_id=9002
+                      expires_at: '2026-06-17T08:35:00Z'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /practice/session/state:
+    get:
+      tags: [Practice]
+      summary: Get current practice session state
+      operationId: getPracticeSessionState
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Current practice or word-drill state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeSessionStateResponse'
+              examples:
+                wordDrill:
+                  value:
+                    session:
+                      user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                      mode: word_drill
+                      round: 1
+                      fail_count: 2
+                      drill_index: 1
+                      drill_words: [regression, merging]
+                      started_at: '2026-06-17T08:30:00Z'
+                    curriculum:
+                      curriculum_id: 42
+                      current_phase_number: 1
+                      phase_theme: Code review essentials
+                    current_item:
+                      content_id: 9001
+                      sentence: We need to review the regression before merging this fix.
+                      target_phonemes: [/r/, /v/]
+                      target_words: [review, regression]
+                      difficulty_score: 2
+                    drill:
+                      active_word: merging
+                      drill_index: 1
+                      total_words: 2
+                    progress:
+                      total: 12
+                      attempted: 5
+                      mastered: 3
+                      avg_score: 77.4
+                      struggling_words:
+                        - We need to review the regression before merging this fix.
+                    sample_audio:
+                      audio_id: teacher-sample-word-merging
+                      content_type: audio/mpeg
+                      duration_ms: 1180
+                      url: /practice/audio/sample?user_id=5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab&word=merging
+                      expires_at: '2026-06-17T08:35:00Z'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /practice/session/skip:
+    post:
+      tags: [Practice]
+      summary: Skip current sentence or drill item
+      operationId: skipPracticeSessionItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PracticeSessionActionRequest'
+            examples:
+              skip:
+                value:
+                  user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+      responses:
+        '200':
+          description: Next item loaded after skip
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeSkipResponse'
+              examples:
+                skipped:
+                  value:
+                    action: skipped
+                    skipped_count: 1
+                    next_state:
+                      session:
+                        user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                        mode: curriculum_practice
+                        round: 2
+                        fail_count: 0
+                        started_at: '2026-06-17T08:30:00Z'
+                      curriculum:
+                        curriculum_id: 42
+                        current_phase_number: 1
+                        phase_theme: Code review essentials
+                      current_item:
+                        content_id: 9003
+                        sentence: The reviewer asked for clearer logging around this failure.
+                        target_phonemes: [/r/, /l/]
+                        target_words: [reviewer, clearer, logging]
+                        difficulty_score: 2
+                      progress:
+                        total: 12
+                        attempted: 6
+                        mastered: 3
+                        avg_score: 73.8
+                        struggling_words:
+                          - We need to review the regression before merging this fix.
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /practice/session/stop:
+    post:
+      tags: [Practice]
+      summary: Stop current practice session
+      operationId: stopPracticeSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PracticeSessionActionRequest'
+            examples:
+              stop:
+                value:
+                  user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+      responses:
+        '200':
+          description: Session terminated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeStopResponse'
+              examples:
+                stopped:
+                  value:
+                    action: stopped
+                    session_cleared: true
+                    summary:
+                      total_attempts: 7
+                      passed_first_try: 2
+                      needed_drill: 1
+                      skipped: 1
+                      final_mode: curriculum_practice
+                    message: Practice session ended. Resume later with /practice/session/start.
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /practice/audio:
+    post:
+      tags: [Practice]
+      summary: Upload learner audio for scoring
+      description: Upload one `.m4a` or other supported audio file and receive structured word-level scoring.
+      operationId: scorePracticeAudio
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [user_id, audio_file]
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+                audio_file:
+                  type: string
+                  format: binary
+                content_id:
+                  type: integer
+                  nullable: true
+                expected_text:
+                  type: string
+                  nullable: true
+            encoding:
+              audio_file:
+                contentType: audio/m4a, audio/x-m4a, audio/wav, audio/mpeg, audio/ogg
+      responses:
+        '200':
+          description: Audio scored and session advanced or updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeAudioResponse'
+              examples:
+                retry:
+                  value:
+                    scoring:
+                      overall_score: 74
+                      passed: false
+                      transcript: Please describe the issue before proposing a fix
+                      expected_text: Please describe the issue before proposing a fix.
+                      engine: whisper
+                      weak_words: [describe, fix]
+                      error_types: [final_consonant, general]
+                      feedback_message: Khá ổn rồi, nhưng mình muốn bạn giữ âm cuối rõ hơn ở vài từ. Nghe lại mẫu rồi thử đọc thêm một lần nhé.
+                      word_scores:
+                        - word: Please
+                          accuracy: 91
+                          color: green
+                          phoneme_similarity: 0.93
+                          tip: null
+                        - word: describe
+                          accuracy: 58
+                          color: yellow
+                          phoneme_similarity: 0.74
+                          tip: Chú ý giữ phụ âm cuối rõ hơn và nhấn trọng âm ở âm tiết thứ hai.
+                        - word: the
+                          accuracy: 44
+                          color: red
+                          phoneme_similarity: 0.39
+                          tip: Đặt đầu lưỡi giữa hai hàm răng để tạo âm /ð/ rõ hơn.
+                        - word: before
+                          accuracy: 0
+                          color: gray
+                          phoneme_similarity: 0.0
+                          tip: null
+                      sample_audio:
+                        audio_id: teacher-sample-9002
+                        content_type: audio/mpeg
+                        duration_ms: 2940
+                        url: /practice/audio/sample?user_id=5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab&content_id=9002
+                        expires_at: '2026-06-17T08:35:00Z'
+                    next_action:
+                      action: retry_sentence
+                      message: Retry the full sentence with teacher sample guidance.
+                      focus_words: [describe, the, fix]
+                    session:
+                      user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                      mode: curriculum_practice
+                      round: 1
+                      fail_count: 1
+                      started_at: '2026-06-17T08:30:00Z'
+                    current_item:
+                      content_id: 9002
+                      sentence: Please describe the issue before proposing a fix.
+                      target_phonemes: [/z/, /f/]
+                      target_words: [describe, fix]
+                      difficulty_score: 2
+                drill:
+                  value:
+                    scoring:
+                      overall_score: 61
+                      passed: false
+                      transcript: Please discribe the issue before proposing a fix
+                      expected_text: Please describe the issue before proposing a fix.
+                      engine: azure
+                      weak_words: [describe, fix]
+                      error_types: [vowel_stress, final_consonant]
+                      feedback_message: Mình tách riêng 2 từ khó để bạn luyện ngắn trước, rồi quay lại đọc cả câu sẽ dễ hơn nhiều.
+                      word_scores:
+                        - word: describe
+                          accuracy: 49
+                          color: red
+                          phoneme_similarity: 0.63
+                          tip: 'Nhấn trọng âm ở âm tiết thứ hai: de-SCRIBE.'
+                        - word: fix
+                          accuracy: 35
+                          color: red
+                          phoneme_similarity: 0.41
+                          tip: Giữ rõ âm cuối /ks/, đừng dừng sớm sau nguyên âm.
+                        - word: before
+                          accuracy: 0
+                          color: gray
+                          phoneme_similarity: 0.0
+                          tip: null
+                      sample_audio:
+                        audio_id: teacher-sample-word-describe
+                        content_type: audio/mpeg
+                        duration_ms: 1260
+                        url: /practice/audio/sample?user_id=5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab&word=describe
+                        expires_at: '2026-06-17T08:35:00Z'
+                    next_action:
+                      action: drill_words
+                      message: Start word drill on identified weak words.
+                      focus_words: [describe, fix]
+                    session:
+                      user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                      mode: word_drill
+                      round: 1
+                      fail_count: 2
+                      drill_index: 0
+                      drill_words: [describe, fix]
+                      started_at: '2026-06-17T08:30:00Z'
+                    current_item:
+                      content_id: 9002
+                      sentence: Please describe the issue before proposing a fix.
+                      target_phonemes: [/z/, /f/]
+                      target_words: [describe, fix]
+                      difficulty_score: 2
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /practice/audio/sample:
+    get:
+      tags: [Practice]
+      summary: Stream teacher sample audio
+      operationId: getPracticeSampleAudio
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - name: content_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: word
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Binary teacher sample audio stream
+          headers:
+            Content-Type:
+              schema:
+                type: string
+                example: audio/mpeg
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /progress:
+    get:
+      tags: [Progress]
+      summary: Get learner progress overview
+      description: Mirrors the Discord `!me` summary.
+      operationId: getProgress
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Learner progress snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressResponse'
+              examples:
+                progress:
+                  value:
+                    user:
+                      user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                      username: Bao Duong
+                      display_name: Bảo
+                      interface_language: vi
+                      created_at: '2026-06-17T08:00:00Z'
+                      onboarding_completed_at: '2026-06-17T08:03:00Z'
+                      active_curriculum_id: 42
+                      current_level: 2
+                      total_sessions: 14
+                      streak_count: 5
+                    curriculum:
+                      curriculum_id: 42
+                      user_id: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+                      status: active
+                      goal_title: Phát âm tự tin trong code review
+                      goal_description: Cải thiện phát âm rõ ràng khi trình bày issue, phản hồi review và thảo luận giải pháp với team quốc tế.
+                      interface_language: vi
+                      current_phase_number: 1
+                      created_at: '2026-06-17T08:03:00Z'
+                      completed_at: null
+                    phase_progress:
+                      total: 12
+                      attempted: 7
+                      mastered: 4
+                      avg_score: 78.9
+                      struggling_words:
+                        - Please describe the issue before proposing a fix.
+                    recent_word_scores:
+                      - word: regression
+                        accuracy: 83
+                        color: green
+                        phoneme_similarity: 0.88
+                        tip: null
+                      - word: describe
+                        accuracy: 58
+                        color: yellow
+                        phoneme_similarity: 0.74
+                        tip: Chú ý giữ phụ âm cuối rõ hơn và nhấn trọng âm ở âm tiết thứ hai.
+                    last_sample_audio:
+                      audio_id: teacher-sample-9002
+                      content_type: audio/mpeg
+                      duration_ms: 2940
+                      url: /practice/audio/sample?user_id=5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab&content_id=9002
+                      expires_at: '2026-06-17T08:35:00Z'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /health:
+    get:
+      tags: [System]
+      summary: Health and readiness check
+      operationId: getHealth
+      responses:
+        '200':
+          description: Gateway health details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                healthy:
+                  value:
+                    status: ok
+                    app_version: 1.0.0
+                    timestamp: '2026-06-17T08:40:00Z'
+                    dependencies:
+                      database: up
+                      ollama: up
+                      whisper: loaded
+                      ffmpeg: available
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+
+  /ws/session:
+    get:
+      tags: [WebSocket]
+      summary: WebSocket session event channel
+      description: |
+        Logical documentation entry for the WebSocket endpoint. After upgrade,
+        the server emits envelopes shaped as
+        `{ "event": string, "data": object, "timestamp": string }`.
+      operationId: sessionWebSocket
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '101':
+          description: Switching Protocols to WebSocket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebSocketEnvelope'
+              examples:
+                onboardingTurn:
+                  value:
+                    event: onboarding.turn
+                    timestamp: '2026-06-17T08:41:00Z'
+                    data:
+                      session_mode: onboarding
+                      turn_number: 4
+                      role: assistant
+                      content: Trong các buổi code review đó, bạn thấy mình khó nhất ở âm nào hoặc kiểu từ nào?
+                practiceState:
+                  value:
+                    event: practice.state.updated
+                    timestamp: '2026-06-17T08:42:00Z'
+                    data:
+                      session_mode: word_drill
+                      overall_score: 61
+                      next_action: drill_words
+                      focus_words: [describe, fix]
+                      current_item:
+                        content_id: 9002
+                        sentence: Please describe the issue before proposing a fix.
+                heartbeat:
+                  value:
+                    event: heartbeat
+                    timestamp: '2026-06-17T08:42:05Z'
+                    data:
+                      interval_seconds: 20
+                      session_mode: curriculum_practice
+components:
+  securitySchemes:
+    XApiKeyPlaceholder:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: None in v1 beyond trusted LAN assumptions; header reserved for future hardening.
+  parameters:
+    UserId:
+      name: user_id
+      in: query
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: 5c2f2d1f-2cc9-4ce6-b673-95d7dcf61aab
+    PhaseIdPath:
+      name: phase_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      example: 101
+  responses:
+    ErrorResponse:
+      description: Standard error envelope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            invalidAudio:
+              value:
+                error_code: INVALID_AUDIO
+                message: Uploaded file could not be decoded as supported practice audio.
+                detail:
+                  supported_content_types: [audio/m4a, audio/x-m4a, audio/wav, audio/mpeg, audio/ogg]
+            onboardingIncomplete:
+              value:
+                error_code: ONBOARDING_INCOMPLETE
+                message: Complete onboarding before starting practice.
+                detail:
+                  required_endpoint: /onboarding/start
+  schemas:
+    UserProfile:
+      type: object
+      required: [user_id, username, interface_language, created_at, current_level, total_sessions, streak_count]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        display_name:
+          type: string
+          nullable: true
+        interface_language:
+          type: string
+          enum: [vi, en]
+        created_at:
+          type: string
+          format: date-time
+        onboarding_completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        active_curriculum_id:
+          type: integer
+          nullable: true
+        current_level:
+          type: integer
+          minimum: 1
+          maximum: 3
+        total_sessions:
+          type: integer
+          minimum: 0
+        streak_count:
+          type: integer
+          minimum: 0
