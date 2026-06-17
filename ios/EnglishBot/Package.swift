@@ -13,6 +13,9 @@ let package = Package(
         .library(
             name: "DesignSystem",
             targets: ["DesignSystem"]),
+        .library(
+            name: "App",
+            targets: ["App"]),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -20,6 +23,11 @@ let package = Package(
         .target(
             name: "DesignSystem",
             path: "Sources/DesignSystem"
+        ),
+        .target(
+            name: "App",
+            dependencies: ["DesignSystem"],
+            path: "Sources/App"
         ),
     ]
 )
