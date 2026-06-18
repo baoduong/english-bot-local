@@ -2,9 +2,13 @@ import SwiftUI
 import DesignSystem
 
 public struct ProgressDashboardView: View {
-    @StateObject private var viewModel = ProgressViewModel()
+    private let userId: String
+    @StateObject private var viewModel: ProgressViewModel
     
-    public init() {}
+    public init(userId: String) {
+        self.userId = userId
+        _viewModel = StateObject(wrappedValue: ProgressViewModel(userId: userId))
+    }
     
     public var body: some View {
         ScrollView {
@@ -99,7 +103,7 @@ public struct ProgressDashboardView: View {
         }
         .background(Color.BotTheme.backgroundMain.ignoresSafeArea())
         .onAppear {
-            viewModel.fetchProgress()
+            Task { await viewModel.fetchProgress() }
         }
     }
 }

@@ -5,3 +5,8 @@
 /.omo/*
 __pycache__/
 /.omo/run-continuation
+
+# Swift Package Manager build artifacts
+ios/EnglishBot/.build/
+.build/
+venv/

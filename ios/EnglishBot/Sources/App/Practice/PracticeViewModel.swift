@@ -9,94 +9,118 @@ public class PracticeViewModel: ObservableObject {
         case uploading
         case scored
     }
-    
+
     @Published public var state: State = .idle
-    @Published public var currentSentence: String = "This is a placeholder sentence."
+    @Published public var currentSentence: String = ""
     @Published public var scoreResult: ScoringResult?
     @Published public var nextAction: NextActionHint?
-    
+    @Published public var errorMessage: String?
+
     // For Word Drill
     @Published public var isWordDrill: Bool = false
     @Published public var drillWord: String = ""
     @Published public var drillProgress: String = ""
-    
-    public init() {}
-    
-    public func startSession() {
-        // Fetch session from backend
-        // Update currentSentence, etc.
-        state = .idle
+
+    private let userId: String
+    private let apiClient: APIClient
+    private var currentContentId: Int?
+
+    public init(userId: String, apiClient: APIClient = APIClient()) {
+        self.userId = userId
+        self.apiClient = apiClient
     }
-    
+
+    public var sampleAudioURL: URL? {
+        if isWordDrill && !drillWord.isEmpty {
+            return apiClient.sampleAudioURL(userId: userId, word: drillWord)
+        }
+        return apiClient.sampleAudioURL(userId: userId, expectedText: currentSentence)
+    }
+
+    private func applyState(_ response: PracticeSessionStateResponse) {
+        currentContentId = response.currentItem?.contentId
+        if let drill = response.drill {
+            isWordDrill = true
+            drillWord = drill.activeWord
+            drillProgress = "Word \(drill.drillIndex + 1)/\(drill.totalWords)"
+            currentSentence = drill.activeWord
+        } else {
+            isWordDrill = false
+            currentSentence = response.currentItem?.sentence ?? ""
+        }
+    }
+
+    public func startSession() async {
+        state = .idle
+        errorMessage = nil
+        do {
+            let response = try await apiClient.startPracticeSession(userId: userId, resumeIfExists: true)
+            applyState(response)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     public func onRecordingStarted() {
         state = .recording
     }
-    
-    public func onRecordingStopped(url: URL?) {
+
+    public func onRecordingStopped(url: URL?) async {
         guard let url = url else { return }
         state = .uploading
-        
-        // Mock upload and scoring
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            self.mockScoringResponse()
-            self.state = .scored
+        errorMessage = nil
+        do {
+            let response = try await apiClient.scorePracticeAudio(
+                userId: userId,
+                audioURL: url,
+                contentId: currentContentId,
+                expectedText: currentSentence.isEmpty ? nil : currentSentence
+            )
+            scoreResult = response.scoring
+            nextAction = response.nextAction
+            currentContentId = response.currentItem.contentId
+            state = .scored
+        } catch {
+            errorMessage = error.localizedDescription
+            state = .idle
         }
     }
-    
-    public func skip() {
-        // Call backend skip, then reset
+
+    public func skip() async {
+        errorMessage = nil
+        do {
+            let response = try await apiClient.skipPracticeItem(userId: userId)
+            applyState(response.nextState)
+            state = .idle
+            scoreResult = nil
+            nextAction = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    public func stop() async {
+        errorMessage = nil
+        do {
+            _ = try await apiClient.stopPracticeSession(userId: userId)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
         state = .idle
         scoreResult = nil
         nextAction = nil
     }
-    
-    public func stop() {
-        // Stop session
-    }
-    
-    public func next() {
-        if nextAction?.action == "word_drill" {
-            isWordDrill = true
-            if let firstWord = nextAction?.focusWords?.first {
-                drillWord = firstWord
-                drillProgress = "Word 1/\(nextAction?.focusWords?.count ?? 1)"
-            }
-        } else {
-            isWordDrill = false
-            currentSentence = "Here is the next sentence to practice."
-        }
-        
-        state = .idle
+
+    public func next() async {
+        errorMessage = nil
         scoreResult = nil
         nextAction = nil
-    }
-    
-    private func mockScoringResponse() {
-        let scores = [
-            WordScore(word: "This", accuracy: 95, color: "green", phonemeSimilarity: 0.9, tip: nil),
-            WordScore(word: "is", accuracy: 85, color: "green", phonemeSimilarity: 0.8, tip: nil),
-            WordScore(word: "a", accuracy: 65, color: "yellow", phonemeSimilarity: 0.6, tip: nil),
-            WordScore(word: "placeholder", accuracy: 40, color: "red", phonemeSimilarity: 0.4, tip: "Check 'p' sound"),
-            WordScore(word: "sentence.", accuracy: 90, color: "green", phonemeSimilarity: 0.9, tip: nil)
-        ]
-        
-        scoreResult = ScoringResult(
-            overallScore: 75,
-            passed: false,
-            transcript: "This is a plasholder sentence",
-            expectedText: "This is a placeholder sentence",
-            engine: "mock",
-            weakWords: ["placeholder", "a"],
-            errorTypes: ["consonant"],
-            feedbackMessage: "Watch your pronunciation of 'placeholder'.",
-            wordScores: scores,
-            sampleAudio: nil
-        )
-        
-        nextAction = NextActionHint(
-            action: "word_drill",
-            message: "Let's drill some words",
-            focusWords: ["placeholder", "a"]
-        )
+        state = .idle
+        do {
+            let response = try await apiClient.getPracticeState(userId: userId)
+            applyState(response)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }

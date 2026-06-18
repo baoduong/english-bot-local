@@ -94,4 +94,104 @@ public class APIClient: ObservableObject {
         
         return try decode(data, type: PhaseDetailResponse.self)
     }
+
+    // MARK: - Practice
+
+    public func startPracticeSession(userId: String, resumeIfExists: Bool = true) async throws -> PracticeSessionStateResponse {
+        guard let url = URL(string: "/practice/session/start", relativeTo: baseURL) else { throw APIError.invalidURL }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encode(PracticeSessionStartRequest(userId: userId, resumeIfExists: resumeIfExists))
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        if !(200...299).contains(httpResponse.statusCode) { throw APIError.httpError(httpResponse.statusCode) }
+        return try decode(data, type: PracticeSessionStateResponse.self)
+    }
+
+    public func getPracticeState(userId: String) async throws -> PracticeSessionStateResponse {
+        guard let url = URL(string: "/practice/session/state?user_id=\(userId)", relativeTo: baseURL) else { throw APIError.invalidURL }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        if !(200...299).contains(httpResponse.statusCode) { throw APIError.httpError(httpResponse.statusCode) }
+        return try decode(data, type: PracticeSessionStateResponse.self)
+    }
+
+    public func skipPracticeItem(userId: String) async throws -> PracticeSkipResponse {
+        guard let url = URL(string: "/practice/session/skip", relativeTo: baseURL) else { throw APIError.invalidURL }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encode(PracticeSessionActionRequest(userId: userId))
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        if !(200...299).contains(httpResponse.statusCode) { throw APIError.httpError(httpResponse.statusCode) }
+        return try decode(data, type: PracticeSkipResponse.self)
+    }
+
+    public func stopPracticeSession(userId: String) async throws -> PracticeStopResponse {
+        guard let url = URL(string: "/practice/session/stop", relativeTo: baseURL) else { throw APIError.invalidURL }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encode(PracticeSessionActionRequest(userId: userId))
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        if !(200...299).contains(httpResponse.statusCode) { throw APIError.httpError(httpResponse.statusCode) }
+        return try decode(data, type: PracticeStopResponse.self)
+    }
+
+    public func scorePracticeAudio(userId: String, audioURL: URL, contentId: Int? = nil, expectedText: String? = nil) async throws -> PracticeAudioResponse {
+        guard let url = URL(string: "/practice/audio", relativeTo: baseURL) else { throw APIError.invalidURL }
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+        func appendField(_ name: String, _ value: String) {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(value)\r\n".data(using: .utf8)!)
+        }
+        appendField("user_id", userId)
+        if let contentId = contentId { appendField("content_id", String(contentId)) }
+        if let expectedText = expectedText { appendField("expected_text", expectedText) }
+
+        let fileData = try Data(contentsOf: audioURL)
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"audio_file\"; filename=\"practice.m4a\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: audio/m4a\r\n\r\n".data(using: .utf8)!)
+        body.append(fileData)
+        body.append("\r\n".data(using: .utf8)!)
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        if !(200...299).contains(httpResponse.statusCode) { throw APIError.httpError(httpResponse.statusCode) }
+        return try decode(data, type: PracticeAudioResponse.self)
+    }
+
+    public func getProgress(userId: String) async throws -> ProgressResponse {
+        guard let url = URL(string: "/progress?user_id=\(userId)", relativeTo: baseURL) else { throw APIError.invalidURL }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        if !(200...299).contains(httpResponse.statusCode) { throw APIError.httpError(httpResponse.statusCode) }
+        return try decode(data, type: ProgressResponse.self)
+    }
+
+    public func sampleAudioURL(userId: String, word: String? = nil, expectedText: String? = nil) -> URL? {
+        var components = "/practice/audio/sample?user_id=\(userId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? userId)"
+        if let word = word, let enc = word.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            components += "&word=\(enc)"
+        } else if let expectedText = expectedText, let enc = expectedText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            components += "&expected_text=\(enc)"
+        }
+        return URL(string: components, relativeTo: baseURL)
+    }
 }

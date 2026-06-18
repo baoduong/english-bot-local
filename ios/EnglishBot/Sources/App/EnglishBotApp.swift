@@ -68,7 +68,7 @@ public struct EnglishBotApp: View {
             .tag(0)
 
             NavigationStack {
-                PracticeSessionView()
+                PracticeSessionView(userId: userId)
                     .navigationTitle("Practice")
                     #if os(iOS)
                     .navigationBarTitleDisplayMode(.inline)
@@ -80,7 +80,7 @@ public struct EnglishBotApp: View {
             .tag(1)
 
             NavigationStack {
-                ProgressDashboardView()
+                ProgressDashboardView(userId: userId)
                     .navigationTitle("Progress")
                     #if os(iOS)
                     .navigationBarTitleDisplayMode(.inline)
@@ -102,13 +102,13 @@ public struct EnglishBotApp: View {
             .navigationDestination(for: NavigationRoute.self) { route in
                 switch route {
                 case .practice:
-                    PracticeSessionView()
+                    PracticeSessionView(userId: userId)
                         .navigationTitle("Practice")
                         #if os(iOS)
                         .navigationBarTitleDisplayMode(.inline)
                         #endif
                 case .progress:
-                    ProgressDashboardView()
+                    ProgressDashboardView(userId: userId)
                         .navigationTitle("Progress")
                         #if os(iOS)
                         .navigationBarTitleDisplayMode(.inline)

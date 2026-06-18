@@ -171,16 +171,22 @@ public struct CurriculumPhase: Codable, Identifiable {
 public struct PracticeContentItem: Codable, Identifiable {
     public let contentId: Int
     public let sentence: String
+    public let targetPhonemes: [String]?
+    public let targetWords: [String]?
     public let difficultyScore: Int
+    public let attemptCount: Int?
     public let lastScore: Int?
-    public let masteredAt: String? // Assuming datetime string
-    
+    public let masteredAt: String?
+
     public var id: Int { contentId }
-    
+
     enum CodingKeys: String, CodingKey {
         case contentId = "content_id"
         case sentence
+        case targetPhonemes = "target_phonemes"
+        case targetWords = "target_words"
         case difficultyScore = "difficulty_score"
+        case attemptCount = "attempt_count"
         case lastScore = "last_score"
         case masteredAt = "mastered_at"
     }

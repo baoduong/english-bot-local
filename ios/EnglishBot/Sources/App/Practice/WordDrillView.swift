@@ -11,7 +11,7 @@ public struct WordDrillView: View {
             // Header
             HStack {
                 Button("Stop Drill") {
-                    viewModel.stop()
+                    Task { await viewModel.stop() }
                 }
                 .foregroundColor(Color.BotTheme.textSecondary)
                 
@@ -31,7 +31,7 @@ public struct WordDrillView: View {
                 .multilineTextAlignment(.center)
             
             Button(action: {
-                // Play sample
+                if let u = viewModel.sampleAudioURL { audioPlayer.play(url: u) }
             }) {
                 HStack {
                     Image(systemName: "speaker.wave.2.fill")
@@ -70,7 +70,7 @@ public struct WordDrillView: View {
             // Record Button
             if viewModel.state == .scored {
                 Button(action: {
-                    viewModel.next()
+                    Task { await viewModel.next() }
                 }) {
                     Text("Next")
                         .font(Font.BotTheme.heading3)
@@ -84,7 +84,7 @@ public struct WordDrillView: View {
                 RecordButton(isRecording: audioRecorder.isRecording) {
                     if audioRecorder.isRecording {
                         let url = audioRecorder.stopRecording()
-                        viewModel.onRecordingStopped(url: url)
+                        Task { await viewModel.onRecordingStopped(url: url) }
                     } else {
                         do {
                             _ = try audioRecorder.startRecording()

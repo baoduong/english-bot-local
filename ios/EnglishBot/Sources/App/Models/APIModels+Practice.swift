@@ -233,3 +233,65 @@ public extension CurriculumSummary {
         return CurriculumSummary(curriculumId: curriculumId, status: status, goalTitle: goalTitle, goalDescription: goalDescription, currentPhaseNumber: currentPhaseNumber)
     }
 }
+
+// MARK: - Practice Session Requests/Responses (added for backend wiring)
+
+public struct PracticeSessionStartRequest: Codable {
+    public let userId: String
+    public let resumeIfExists: Bool
+    public init(userId: String, resumeIfExists: Bool = true) {
+        self.userId = userId
+        self.resumeIfExists = resumeIfExists
+    }
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case resumeIfExists = "resume_if_exists"
+    }
+}
+
+public struct PracticeSessionActionRequest: Codable {
+    public let userId: String
+    public init(userId: String) { self.userId = userId }
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+    }
+}
+
+public struct SessionEndSummary: Codable {
+    public let totalAttempts: Int
+    public let passedFirstTry: Int
+    public let neededDrill: Int
+    public let skipped: Int
+    public let finalMode: String
+    enum CodingKeys: String, CodingKey {
+        case totalAttempts = "total_attempts"
+        case passedFirstTry = "passed_first_try"
+        case neededDrill = "needed_drill"
+        case skipped
+        case finalMode = "final_mode"
+    }
+}
+
+public struct PracticeSkipResponse: Codable {
+    public let action: String
+    public let skippedCount: Int
+    public let nextState: PracticeSessionStateResponse
+    enum CodingKeys: String, CodingKey {
+        case action
+        case skippedCount = "skipped_count"
+        case nextState = "next_state"
+    }
+}
+
+public struct PracticeStopResponse: Codable {
+    public let action: String
+    public let sessionCleared: Bool
+    public let summary: SessionEndSummary
+    public let message: String
+    enum CodingKeys: String, CodingKey {
+        case action
+        case sessionCleared = "session_cleared"
+        case summary
+        case message
+    }
+}

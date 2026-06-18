@@ -2,11 +2,15 @@ import SwiftUI
 import DesignSystem
 
 public struct PracticeSessionView: View {
-    @StateObject private var viewModel = PracticeViewModel()
+    private let userId: String
+    @StateObject private var viewModel: PracticeViewModel
     @StateObject private var audioRecorder = AudioRecorder()
     @StateObject private var audioPlayer = AudioPlayer()
     
-    public init() {}
+    public init(userId: String) {
+        self.userId = userId
+        _viewModel = StateObject(wrappedValue: PracticeViewModel(userId: userId))
+    }
     
     public var body: some View {
         VStack(spacing: Spacing.xl) {
@@ -19,7 +23,9 @@ public struct PracticeSessionView: View {
         .padding(Spacing.lg)
         .background(Color.BotTheme.backgroundMain.ignoresSafeArea())
         .onAppear {
-            viewModel.startSession()
+            Task {
+                await viewModel.startSession()
+            }
             Task {
                 _ = await audioRecorder.requestPermission()
             }
@@ -37,14 +43,14 @@ private struct SentencePracticeView: View {
             // Header
             HStack {
                 Button("Stop") {
-                    viewModel.stop()
+                    Task { await viewModel.stop() }
                 }
                 .foregroundColor(Color.BotTheme.textSecondary)
                 
                 Spacer()
                 
                 Button("Skip") {
-                    viewModel.skip()
+                    Task { await viewModel.skip() }
                 }
                 .foregroundColor(Color.BotTheme.textSecondary)
             }
@@ -58,8 +64,7 @@ private struct SentencePracticeView: View {
                 .multilineTextAlignment(.center)
             
             Button(action: {
-                // Play sample
-                // audioPlayer.play(url: ...)
+                if let u = viewModel.sampleAudioURL { audioPlayer.play(url: u) }
             }) {
                 HStack {
                     Image(systemName: "speaker.wave.2.fill")
@@ -85,7 +90,7 @@ private struct SentencePracticeView: View {
             // Record Button
             if viewModel.state == .scored {
                 Button(action: {
-                    viewModel.next()
+                    Task { await viewModel.next() }
                 }) {
                     Text(viewModel.nextAction?.action == "word_drill" ? "Start Word Drill" : "Next")
                         .font(Font.BotTheme.heading3)
@@ -99,7 +104,7 @@ private struct SentencePracticeView: View {
                 RecordButton(isRecording: audioRecorder.isRecording) {
                     if audioRecorder.isRecording {
                         let url = audioRecorder.stopRecording()
-                        viewModel.onRecordingStopped(url: url)
+                        Task { await viewModel.onRecordingStopped(url: url) }
                     } else {
                         do {
                             _ = try audioRecorder.startRecording()
