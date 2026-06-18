@@ -1,63 +1,127 @@
 import SwiftUI
 import DesignSystem
 
-/// Root navigation entry point for the English Learning iOS app.
-/// Routes between onboarding, curriculum, practice, and progress screens
-/// based on persisted user state.
+// MARK: - App-wide Notification Names
+
+public extension Notification.Name {
+    static let onboardingConfirmed = Notification.Name("eb.onboardingConfirmed")
+}
+
+// MARK: - Navigation Route Token
+
+enum NavigationRoute: Hashable {
+    case practice
+    case progress
+}
+
+// MARK: - EnglishBotApp (Root View)
+
 public struct EnglishBotApp: View {
-    @AppStorage("userId") private var userId: String = UUID().uuidString
-    @AppStorage("onboardingCompleted") private var onboardingCompleted: Bool = false
-    @State private var showingPractice: Bool = false
-    @State private var showingProgress: Bool = false
-    
+    @AppStorage("eb_userId") private var userId: String = ""
+    @AppStorage("eb_onboardingDone") private var onboardingDone: Bool = false
+    @AppStorage("eb_activeTab") private var activeTab: Int = 0
+    @State private var onboardingNavigated: Bool = false
+
     public init() {}
-    
+
     public var body: some View {
-        NavigationView {
-            if !onboardingCompleted {
-                OnboardingChatView(userId: userId)
-                    .onReceive(NotificationCenter.default.publisher(for: .onboardingConfirmed)) { _ in
-                        onboardingCompleted = true
-                    }
+        Group {
+            if userId.isEmpty {
+                Color.BotTheme.backgroundMain
+                    .ignoresSafeArea()
+                    .onAppear { userId = UUID().uuidString }
+            } else if !onboardingDone {
+                onboardingFlow
             } else {
-                CurriculumView(userId: userId)
-                    .toolbar {
-                        ToolbarItem(placement: .automatic) {
-                            Button(action: { showingProgress = true }) {
-                                Image(systemName: "chart.bar.fill")
-                            }
-                        }
-                        ToolbarItem(placement: .automatic) {
-                            Button(action: { showingPractice = true }) {
-                                Image(systemName: "mic.fill")
-                            }
-                        }
-                    }
-                    .sheet(isPresented: $showingPractice) {
-                        NavigationView {
-                            PracticeSessionView()
-                                .toolbar {
-                                    ToolbarItem(placement: .cancellationAction) {
-                                        Button("Done") { showingPractice = false }
-                                    }
-                                }
-                        }
-                    }
-                    .sheet(isPresented: $showingProgress) {
-                        NavigationView {
-                            ProgressDashboardView()
-                                .toolbar {
-                                    ToolbarItem(placement: .cancellationAction) {
-                                        Button("Done") { showingProgress = false }
-                                    }
-                                }
-                        }
-                    }
+                mainTabView
             }
         }
     }
-}
 
-extension Notification.Name {
-    static let onboardingConfirmed = Notification.Name("onboardingConfirmed")
+    // MARK: - Onboarding Flow
+
+    private var onboardingFlow: some View {
+        NavigationStack {
+            OnboardingChatView(userId: userId)
+                .onReceive(
+                    NotificationCenter.default.publisher(for: .onboardingConfirmed)
+                ) { _ in
+                    onboardingDone = true
+                    onboardingNavigated = true
+                }
+                .navigationDestination(isPresented: $onboardingNavigated) {
+                    curriculumView
+                }
+        }
+    }
+
+    // MARK: - Main Tab View
+
+    private var mainTabView: some View {
+        TabView(selection: $activeTab) {
+            NavigationStack {
+                curriculumView
+            }
+            .tabItem {
+                Label("Curriculum", systemImage: "list.bullet.rectangle")
+            }
+            .tag(0)
+
+            NavigationStack {
+                PracticeSessionView()
+                    .navigationTitle("Practice")
+                    #if os(iOS)
+                    .navigationBarTitleDisplayMode(.inline)
+                    #endif
+            }
+            .tabItem {
+                Label("Practice", systemImage: "mic.fill")
+            }
+            .tag(1)
+
+            NavigationStack {
+                ProgressDashboardView()
+                    .navigationTitle("Progress")
+                    #if os(iOS)
+                    .navigationBarTitleDisplayMode(.inline)
+                    #endif
+            }
+            .tabItem {
+                Label("Progress", systemImage: "chart.bar.fill")
+            }
+            .tag(2)
+        }
+        .tint(Color.BotTheme.primary)
+    }
+
+    // MARK: - CurriculumView
+
+    @ViewBuilder
+    private var curriculumView: some View {
+        CurriculumView(userId: userId)
+            .navigationDestination(for: NavigationRoute.self) { route in
+                switch route {
+                case .practice:
+                    PracticeSessionView()
+                        .navigationTitle("Practice")
+                        #if os(iOS)
+                        .navigationBarTitleDisplayMode(.inline)
+                        #endif
+                case .progress:
+                    ProgressDashboardView()
+                        .navigationTitle("Progress")
+                        #if os(iOS)
+                        .navigationBarTitleDisplayMode(.inline)
+                        #endif
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .automatic) {
+                    NavigationLink(value: NavigationRoute.practice) {
+                        Label("Practice", systemImage: "mic.circle.fill")
+                            .foregroundColor(Color.BotTheme.primary)
+                    }
+                }
+            }
+    }
 }

@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import SwiftUI
 
 @MainActor
 public class OnboardingViewModel: ObservableObject {
@@ -57,10 +58,9 @@ public class OnboardingViewModel: ObservableObject {
             let response = try await apiClient.confirmOnboarding(userId: userId, confirmed: accepted)
             if response.status == "confirmed" {
                 self.synthesisConfirmed = true
+                NotificationCenter.default.post(name: .onboardingConfirmed, object: nil)
             } else {
-                self.pendingGoal = nil // Rejected, clear and continue
-                // Depending on the backend, it might start over or ask another question. 
-                // We'd ideally need to fetch the next state if rejected.
+                self.pendingGoal = nil
             }
         } catch {
             self.errorMessage = error.localizedDescription

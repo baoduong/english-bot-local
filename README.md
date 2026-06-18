@@ -118,6 +118,57 @@ Chi phí Azure: ~$1.32/giờ audio. **Free tier 5 giờ/tháng** — đủ dùng
 
 ---
 
+## iPhone App
+
+Native iOS pronunciation coach built with SwiftUI + Swift Package Manager (no Xcode project required).
+
+### Prerequisites
+
+- **Xcode 15** or later (for iOS 16 SDK headers; needed even for `swift build` on macOS)
+- **Swift 5.9+** — ships with Xcode 15
+- **macOS 13+** (Ventura or later)
+- **Python 3.9+** + dependencies installed (see above) — required for the FastAPI backend gateway
+
+### Build the iOS package
+
+```bash
+cd ios/EnglishBot
+swift build
+```
+
+Expected output: `Build complete!` with no errors.
+
+### Run the FastAPI backend gateway
+
+The iPhone app calls a local REST API that wraps the Whisper/Ollama pipeline:
+
+```bash
+uvicorn api.main:app --host 0.0.0.0 --port 8000
+```
+
+Wait for the log line `Whisper model loaded` before opening the app — the first scoring request requires the model to be warm.
+
+### Configuration
+
+The iOS `APIClient` defaults to `http://localhost:8000`. To point at a different host or port, update the base URL constant in:
+
+```
+ios/EnglishBot/Sources/App/Networking/APIClient.swift
+```
+
+The WebSocket client for real-time session events defaults to `ws://localhost:8000/ws/session`.
+
+### App flow
+
+```
+First launch  → AI Onboarding Chat → Goal Confirmation → CurriculumView
+Returning     → TabView { Curriculum | Practice | Progress }
+```
+
+User state (`userId`, onboarding completion flag, last active tab) is persisted via `@AppStorage` (UserDefaults) and survives app restarts.
+
+---
+
 ## Cấu trúc dự án
 
 ```
