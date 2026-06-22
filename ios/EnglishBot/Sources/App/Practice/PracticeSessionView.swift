@@ -147,10 +147,57 @@ private struct SentencePracticeView: View {
                     .multilineTextAlignment(.center)
                     .padding(.top, Spacing.xs)
             }
+            
+            // Tips for weak words
+            let tipsAvailable = result.wordScores.filter { $0.accuracy < 80 && $0.tip != nil && !($0.tip ?? "").isEmpty }
+            if !tipsAvailable.isEmpty {
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    Text("💡 Mẹo phát âm")
+                        .font(Font.BotTheme.heading3)
+                        .foregroundColor(Color.BotTheme.textPrimary)
+                        .padding(.top, Spacing.sm)
+                    
+                    ForEach(Array(tipsAvailable.enumerated()), id: \.offset) { _, score in
+                        TipCard(wordScore: score)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .padding()
         .background(Color.BotTheme.backgroundSecondary)
         .cornerRadius(Spacing.md)
+    }
+}
+
+private struct TipCard: View {
+    let wordScore: WordScore
+    
+    private var scoreColor: Color {
+        if wordScore.accuracy >= 80 { return Color.BotTheme.scoreExcellent }
+        if wordScore.accuracy >= 60 { return Color.BotTheme.scoreAverage }
+        return Color.BotTheme.scorePoor
+    }
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: Spacing.sm) {
+            Text(wordScore.word)
+                .font(Font.BotTheme.bodyPrimary.weight(.semibold))
+                .foregroundColor(.white)
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
+                .background(scoreColor)
+                .cornerRadius(Spacing.sm)
+            
+            Text(wordScore.tip ?? "")
+                .font(Font.BotTheme.bodySecondary)
+                .foregroundColor(Color.BotTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(Spacing.sm)
+        .background(Color.BotTheme.backgroundMain)
+        .cornerRadius(Spacing.sm)
     }
 }
 
