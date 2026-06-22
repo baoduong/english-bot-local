@@ -15,6 +15,9 @@ public class PracticeViewModel: ObservableObject {
     @Published public var scoreResult: ScoringResult?
     @Published public var nextAction: NextActionHint?
     @Published public var errorMessage: String?
+    @Published public var phaseComplete: Bool = false
+    @Published public var isAdvancingPhase: Bool = false
+    @Published public var phaseProgress: PhaseProgress?
 
     // For Word Drill
     @Published public var isWordDrill: Bool = false
@@ -47,6 +50,8 @@ public class PracticeViewModel: ObservableObject {
     }
 
     private func applyState(_ response: PracticeSessionStateResponse) {
+        phaseComplete = response.phaseComplete
+        phaseProgress = response.progress
         currentContentId = response.currentItem?.contentId
         if let drill = response.drill {
             isWordDrill = true
@@ -56,6 +61,8 @@ public class PracticeViewModel: ObservableObject {
         } else {
             isWordDrill = false
             currentSentence = response.currentItem?.sentence ?? ""
+            drillWord = ""
+            drillProgress = ""
         }
     }
 
@@ -65,6 +72,8 @@ public class PracticeViewModel: ObservableObject {
         do {
             let response = try await apiClient.startPracticeSession(userId: userId, resumeIfExists: true)
             applyState(response)
+            scoreResult = nil
+            nextAction = nil
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -118,6 +127,18 @@ public class PracticeViewModel: ObservableObject {
         state = .idle
         scoreResult = nil
         nextAction = nil
+    }
+
+    public func advancePhase() async {
+        isAdvancingPhase = true
+        errorMessage = nil
+        do {
+            _ = try await apiClient.advancePhase(userId: userId)
+            await startSession()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isAdvancingPhase = false
     }
 
     public func next() async {

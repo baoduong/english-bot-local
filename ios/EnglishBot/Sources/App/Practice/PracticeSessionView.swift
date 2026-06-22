@@ -42,6 +42,71 @@ private struct SentencePracticeView: View {
     @ObservedObject var audioPlayer: AudioPlayer
     
     var body: some View {
+        Group {
+            if viewModel.phaseComplete {
+                phaseCompleteView
+            } else {
+                practiceContentView
+            }
+        }
+    }
+
+    private var phaseCompleteView: some View {
+        VStack(spacing: Spacing.xl) {
+            Text("🎉 Phase Complete!")
+                .font(Font.BotTheme.heading1)
+                .foregroundColor(Color.BotTheme.scoreExcellent)
+
+            Text("Bạn đã hoàn thành phase này!")
+                .font(Font.BotTheme.bodyPrimary)
+                .foregroundColor(Color.BotTheme.textSecondary)
+                .multilineTextAlignment(.center)
+
+            if let progress = viewModel.phaseProgress {
+                VStack(spacing: Spacing.sm) {
+                    Text("Điểm trung bình")
+                        .font(Font.BotTheme.bodySecondary)
+                        .foregroundColor(Color.BotTheme.textSecondary)
+                    Text(String(format: "%.2f", progress.avgScore))
+                        .font(Font.BotTheme.heading2)
+                        .foregroundColor(Color.BotTheme.textPrimary)
+                }
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(Color.BotTheme.backgroundSecondary)
+                .cornerRadius(Spacing.md)
+            }
+
+            if viewModel.isAdvancingPhase {
+                LoadingIndicator()
+                Text("Đang tạo phase tiếp theo... (có thể mất 30-60 giây)")
+                    .font(Font.BotTheme.bodySecondary)
+                    .foregroundColor(Color.BotTheme.textSecondary)
+                    .multilineTextAlignment(.center)
+            } else {
+                Button(action: { Task { await viewModel.advancePhase() } }) {
+                    Text("Generate phase tiếp theo →")
+                        .font(Font.BotTheme.heading3)
+                        .foregroundColor(.white)
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(Color.BotTheme.primary)
+                        .cornerRadius(Spacing.md)
+                }
+                .disabled(viewModel.isAdvancingPhase)
+            }
+
+            if let errorMessage = viewModel.errorMessage {
+                Text(errorMessage)
+                    .font(Font.BotTheme.bodySecondary)
+                    .foregroundColor(Color.BotTheme.scorePoor)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding()
+    }
+
+    private var practiceContentView: some View {
         VStack(spacing: Spacing.xl) {
             // Header
             HStack {

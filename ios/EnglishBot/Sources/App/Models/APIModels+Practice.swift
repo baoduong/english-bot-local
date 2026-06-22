@@ -126,6 +126,7 @@ public struct PracticeSessionStateResponse: Codable {
     public let progress: PhaseProgress?
     public let sampleAudio: SampleAudio?
     public let drill: DrillInfo?
+    public let phaseComplete: Bool
     
     enum CodingKeys: String, CodingKey {
         case session
@@ -134,6 +135,34 @@ public struct PracticeSessionStateResponse: Codable {
         case progress
         case sampleAudio = "sample_audio"
         case drill
+        case phaseComplete = "phase_complete"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        session = try c.decode(PracticeSessionState.self, forKey: .session)
+        curriculum = try c.decode(PracticeSessionCurriculumContext.self, forKey: .curriculum)
+        currentItem = try c.decodeIfPresent(PracticeContentItem.self, forKey: .currentItem)
+        progress = try c.decodeIfPresent(PhaseProgress.self, forKey: .progress)
+        sampleAudio = try c.decodeIfPresent(SampleAudio.self, forKey: .sampleAudio)
+        drill = try c.decodeIfPresent(DrillInfo.self, forKey: .drill)
+        phaseComplete = try c.decodeIfPresent(Bool.self, forKey: .phaseComplete) ?? false
+    }
+}
+
+public struct AdvancePhaseResponse: Codable {
+    public let action: String
+    public let message: String
+    public let curriculum: CurriculumSummary
+    public let activePhase: CurriculumPhase
+    public let firstPracticeItem: PracticeContentItem?
+
+    enum CodingKeys: String, CodingKey {
+        case action
+        case message
+        case curriculum
+        case activePhase = "active_phase"
+        case firstPracticeItem = "first_practice_item"
     }
 }
 

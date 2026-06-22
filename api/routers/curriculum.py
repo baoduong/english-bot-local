@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from api.dependencies import get_curriculum_generator
+from api.dependencies import get_curriculum_generator, get_phase_engine
 from api.models import (
+    AdvancePhaseRequest,
+    AdvancePhaseResponse,
     CurriculumArchiveRequest,
     CurriculumArchiveResponse,
     CurriculumGenerateRequest,
@@ -19,8 +21,11 @@ from api.models import (
     PhaseProgress,
     PracticeContentItem,
 )
+from analysis.phase_engine import PhaseEngine
 from db.curriculum import (
+    activate_phase,
     archive_curriculum,
+    get_active_curriculum,
     get_active_phase,
     get_curriculum,
     get_next_practice_sentence,
@@ -204,4 +209,74 @@ async def archive_curriculum_route(body: CurriculumArchiveRequest) -> Curriculum
         status="archived",
         onboarding_required=True,
         message="Curriculum archived and onboarding reset",
+    )
+
+
+@router.post("/advance-phase", response_model=AdvancePhaseResponse)
+async def advance_phase(
+    body: AdvancePhaseRequest,
+    phase_engine: PhaseEngine = Depends(get_phase_engine),
+    generator: CurriculumGenerator = Depends(get_curriculum_generator),
+) -> AdvancePhaseResponse:
+    _ensure_user_exists(await asyncio.to_thread(get_or_create_user, body.user_id, body.user_id), body.user_id)
+
+    curriculum = _ensure_dict(await asyncio.to_thread(get_active_curriculum, body.user_id), "No active curriculum found")
+    active_phase = _ensure_dict(await asyncio.to_thread(get_active_phase, curriculum["id"]), "No active phase found")
+
+    decision = await phase_engine.evaluate_phase_async(_coerce_int(active_phase.get("id")))
+    action = _coerce_text(decision.get("action"))
+
+    if action == "repeat":
+        progress = _ensure_dict(await asyncio.to_thread(get_phase_progress, _coerce_int(active_phase.get("id"))), "Phase progress not found")
+        next_item = await asyncio.to_thread(get_next_practice_sentence, active_phase["id"])
+        return AdvancePhaseResponse(
+            action="repeat",
+            message="Tiếp tục luyện phase hiện tại",
+            curriculum=_to_curriculum_summary(curriculum),
+            active_phase=_to_curriculum_phase(active_phase, progress),
+            first_practice_item=_to_practice_content_item(next_item) if next_item else None,
+        )
+
+    result = await phase_engine.apply_decision_async(_coerce_int(active_phase.get("id")), decision)
+    next_action = _coerce_text(result.get("next_action"))
+
+    if next_action == "generate_next_phase":
+        previous_phases = _ensure_list(await asyncio.to_thread(get_phases_for_curriculum, curriculum["id"]))
+        new_phase_id, _ = await asyncio.to_thread(
+            generator.generate_full_phase,
+            curriculum["id"],
+            _coerce_text(curriculum.get("goal_title")),
+            _coerce_text(curriculum.get("goal_description")),
+            _coerce_int(result.get("next_phase_number"), _coerce_int(active_phase.get("phase_number"), 1) + 1),
+            previous_phases,
+            _coerce_text(decision.get("reasoning")),
+        )
+        await asyncio.to_thread(activate_phase, new_phase_id)
+        await asyncio.to_thread(delete_session, body.user_id)
+        action = "advance"
+    elif next_action == "phase_regenerated":
+        await asyncio.to_thread(delete_session, body.user_id)
+        action = "phase_regenerated"
+    else:
+        action = action or next_action
+
+    curriculum = _ensure_dict(await asyncio.to_thread(get_curriculum, curriculum["id"]), "Curriculum not found")
+    active_phase = _ensure_dict(await asyncio.to_thread(get_active_phase, curriculum["id"]), "No active phase found")
+    progress = _ensure_dict(await asyncio.to_thread(get_phase_progress, _coerce_int(active_phase.get("id"))), "Phase progress not found")
+    first_practice_item = await asyncio.to_thread(get_next_practice_sentence, active_phase["id"])
+
+    message_map = {
+        "advance": "Đã tạo phase tiếp theo thành công",
+        "regenerate": "Đã tái tạo phase hiện tại",
+        "phase_regenerated": "Đã tái tạo phase hiện tại",
+    }
+
+    resolved_action = cast(Literal["advance", "repeat", "regenerate", "phase_regenerated"], action)
+
+    return AdvancePhaseResponse(
+        action=resolved_action,
+        message=message_map.get(action, "Đã cập nhật phase"),
+        curriculum=_to_curriculum_summary(curriculum),
+        active_phase=_to_curriculum_phase(active_phase, progress),
+        first_practice_item=_to_practice_content_item(first_practice_item) if first_practice_item else None,
     )

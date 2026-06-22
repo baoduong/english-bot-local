@@ -156,6 +156,13 @@ def _build_state_response_sync(user_id: str, session: dict[str, Any]) -> Practic
             active_word = words[min(idx, len(words) - 1)]
             drill = DrillInfo(active_word=active_word, drill_index=idx, total_words=len(words))
 
+    phase_complete = (
+        drill is None
+        and current_item is None
+        and progress.total > 0
+        and progress.mastered >= progress.total
+    )
+
     return PracticeSessionStateResponse(
         session=PracticeSessionState(
             user_id=user_id,
@@ -179,6 +186,7 @@ def _build_state_response_sync(user_id: str, session: dict[str, Any]) -> Practic
             sentence=None if drill else (current_item.sentence if current_item else session.get("sentence")),
         ),
         drill=drill,
+        phase_complete=phase_complete,
     )
 
 
@@ -195,14 +203,11 @@ def _build_new_session_sync(user_id: str) -> dict[str, Any]:
         raise _error(404, "ACTIVE_PHASE_NOT_FOUND", "No active phase found for curriculum.")
 
     content = get_next_practice_sentence(phase["id"])
-    if not content:
-        raise _error(404, "NO_PRACTICE_CONTENT", "No practice content available for the active phase.")
-
     progress = get_phase_progress(phase["id"])
     return {
         "round": 1,
         "max_rounds": 5,
-        "sentence": content["sentence"],
+        "sentence": content["sentence"] if content else None,
         "new_word": None,
         "fail_count": 0,
         "mode": "curriculum_practice",
@@ -220,7 +225,7 @@ def _build_new_session_sync(user_id: str) -> dict[str, Any]:
         "phase_theme": phase["theme"],
         "phase_total_content": progress["total"],
         "phase_mastered_count": progress["mastered"],
-        "content_id": content["id"],
+        "content_id": content["id"] if content else None,
     }
 
 

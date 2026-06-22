@@ -205,6 +205,18 @@ class CurriculumGenerateResponse(BaseModel):
     content_items: list[PracticeContentItem] = Field(default_factory=list)
 
 
+class AdvancePhaseRequest(BaseModel):
+    user_id: str
+
+
+class AdvancePhaseResponse(BaseModel):
+    action: Literal["advance", "repeat", "regenerate", "phase_regenerated"]
+    message: str
+    curriculum: CurriculumSummary
+    active_phase: CurriculumPhase
+    first_practice_item: Optional[PracticeContentItem] = None
+
+
 class PhaseDetailResponse(BaseModel):
     phase: CurriculumPhase
     content_items: list[PracticeContentItem] = Field(default_factory=list)
@@ -264,6 +276,7 @@ class PracticeSessionStateResponse(BaseModel):
     progress: Optional[PhaseProgress] = None
     sample_audio: Optional[SampleAudio] = None
     drill: Optional[DrillInfo] = None
+    phase_complete: bool = False
 
 
 class PracticeSessionStartRequest(BaseModel):

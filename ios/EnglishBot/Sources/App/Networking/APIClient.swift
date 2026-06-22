@@ -95,6 +95,18 @@ public class APIClient: ObservableObject {
         return try decode(data, type: PhaseDetailResponse.self)
     }
 
+    public func advancePhase(userId: String) async throws -> AdvancePhaseResponse {
+        guard let url = URL(string: "/curriculum/advance-phase", relativeTo: baseURL) else { throw APIError.invalidURL }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encode(["user_id": userId])
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        if !(200...299).contains(httpResponse.statusCode) { throw APIError.httpError(httpResponse.statusCode) }
+        return try decode(data, type: AdvancePhaseResponse.self)
+    }
+
     // MARK: - Practice
 
     public func startPracticeSession(userId: String, resumeIfExists: Bool = true) async throws -> PracticeSessionStateResponse {
