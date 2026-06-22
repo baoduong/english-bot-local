@@ -37,6 +37,11 @@ public class PracticeViewModel: ObservableObject {
         return apiClient.sampleAudioURL(userId: userId, expectedText: currentSentence)
     }
 
+    public var slowSampleAudioURL: URL? {
+        guard !isWordDrill, !currentSentence.isEmpty else { return nil }
+        return apiClient.sampleAudioURL(userId: userId, expectedText: currentSentence, slow: true)
+    }
+
     public func wordAudioURL(for word: String) -> URL? {
         return apiClient.sampleAudioURL(userId: userId, word: word)
     }

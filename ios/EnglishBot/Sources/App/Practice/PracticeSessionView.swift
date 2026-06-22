@@ -69,18 +69,35 @@ private struct SentencePracticeView: View {
             }
             .frame(maxWidth: .infinity)
             
-            Button(action: {
-                if let u = viewModel.sampleAudioURL { audioPlayer.play(url: u) }
-            }) {
-                HStack {
-                    Image(systemName: "speaker.wave.2.fill")
-                    Text("Listen")
+            HStack(spacing: Spacing.md) {
+                Button(action: {
+                    if let u = viewModel.sampleAudioURL { audioPlayer.play(url: u) }
+                }) {
+                    HStack {
+                        Image(systemName: "speaker.wave.2.fill")
+                        Text("Nghe")
+                    }
+                    .padding()
+                    .background(Color.BotTheme.backgroundSecondary)
+                    .cornerRadius(Spacing.sm)
                 }
-                .padding()
-                .background(Color.BotTheme.backgroundSecondary)
-                .cornerRadius(Spacing.sm)
+                .foregroundColor(Color.BotTheme.primary)
+
+                if let slowURL = viewModel.slowSampleAudioURL {
+                    Button(action: {
+                        audioPlayer.play(url: slowURL)
+                    }) {
+                        HStack {
+                            Image(systemName: "tortoise.fill")
+                            Text("Nghe chậm")
+                        }
+                        .padding()
+                        .background(Color.BotTheme.backgroundSecondary)
+                        .cornerRadius(Spacing.sm)
+                    }
+                    .foregroundColor(Color.BotTheme.primary)
+                }
             }
-            .foregroundColor(Color.BotTheme.primary)
             
             // Feedback Area
             if viewModel.state == .uploading {
@@ -229,4 +246,3 @@ public struct TappableWordView: View {
             }
     }
 }
-

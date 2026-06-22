@@ -185,12 +185,15 @@ public class APIClient: ObservableObject {
         return try decode(data, type: ProgressResponse.self)
     }
 
-    public func sampleAudioURL(userId: String, word: String? = nil, expectedText: String? = nil) -> URL? {
+    public func sampleAudioURL(userId: String, word: String? = nil, expectedText: String? = nil, slow: Bool = false) -> URL? {
         var components = "/practice/audio/sample?user_id=\(userId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? userId)"
         if let word = word, let enc = word.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
             components += "&word=\(enc)"
         } else if let expectedText = expectedText, let enc = expectedText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
             components += "&expected_text=\(enc)"
+        }
+        if slow {
+            components += "&slow=true"
         }
         return URL(string: components, relativeTo: baseURL)
     }

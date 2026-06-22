@@ -47,7 +47,7 @@ from db.sessions import delete_session, load_all_sessions, save_session
 from db.tracking import log_error_pattern, log_score
 from db.users import get_or_create_user, needs_onboarding
 from db.word_stats import record_word_attempts_batch
-from engines.tts import generate_sample_audio
+from engines.tts import generate_chunked_audio, generate_sample_audio
 
 router = APIRouter(prefix="/practice", tags=["Practice"])
 
@@ -554,6 +554,7 @@ async def get_practice_sample_audio(
     content_id: str | None = None,
     word: str | None = None,
     expected_text: str | None = None,
+    slow: bool = False,
 ) -> FileResponse:
     await asyncio.to_thread(_require_user_sync, user_id)
     session = await asyncio.to_thread(_load_session_sync, user_id)
@@ -581,7 +582,10 @@ async def get_practice_sample_audio(
     tmp_path = Path(tempfile.gettempdir()) / f"{uuid4()}_teacher_sample.mp3"
     success = False
     try:
-        success = await generate_sample_audio(text, str(tmp_path))
+        if slow and resolved_text:
+            success = await generate_chunked_audio(text, str(tmp_path))
+        else:
+            success = await generate_sample_audio(text, str(tmp_path))
         if not success or not tmp_path.exists():
             raise _error(400, "SAMPLE_AUDIO_FAILED", "Failed to generate teacher sample audio.")
         return FileResponse(str(tmp_path), media_type="audio/mpeg", filename=f"sample-{uuid4()}.mp3")
