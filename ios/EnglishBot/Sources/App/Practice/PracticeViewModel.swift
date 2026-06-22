@@ -18,6 +18,7 @@ public class PracticeViewModel: ObservableObject {
     @Published public var phaseComplete: Bool = false
     @Published public var isAdvancingPhase: Bool = false
     @Published public var phaseProgress: PhaseProgress?
+    @Published public var consecutivePasses: Int = 0
 
     // For Word Drill
     @Published public var isWordDrill: Bool = false
@@ -52,6 +53,7 @@ public class PracticeViewModel: ObservableObject {
     private func applyState(_ response: PracticeSessionStateResponse) {
         phaseComplete = response.phaseComplete
         phaseProgress = response.progress
+        consecutivePasses = response.consecutivePasses
         currentContentId = response.currentItem?.contentId
         if let drill = response.drill {
             isWordDrill = true
@@ -96,6 +98,7 @@ public class PracticeViewModel: ObservableObject {
             )
             scoreResult = response.scoring
             nextAction = response.nextAction
+            consecutivePasses = response.consecutivePasses
             currentContentId = response.currentItem.contentId
             state = .scored
         } catch {

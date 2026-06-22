@@ -212,15 +212,83 @@ private struct SentencePracticeView: View {
         }
     }
     
+    private func headerText(for result: ScoringResult) -> String {
+        if result.passed {
+            return viewModel.consecutivePasses == 1 ? "Tốt! Còn 1 lần nữa" : "Great job!"
+        }
+        return "Let's try again"
+    }
+    
+    private func headerColor(for result: ScoringResult) -> Color {
+        if result.passed {
+            return viewModel.consecutivePasses == 1 ? Color.BotTheme.scoreAverage : Color.BotTheme.scoreExcellent
+        }
+        return Color.BotTheme.scoreAverage
+    }
+    
     private func feedbackView(result: ScoringResult) -> some View {
         VStack(spacing: Spacing.md) {
-            Text(result.passed ? "Great job!" : "Let's try again")
+            Text(headerText(for: result))
                 .font(Font.BotTheme.heading3)
-                .foregroundColor(result.passed ? Color.BotTheme.scoreExcellent : Color.BotTheme.scoreAverage)
+                .foregroundColor(headerColor(for: result))
             
             Text("Score: \(result.overallScore)")
                 .font(Font.BotTheme.heading2)
                 .foregroundColor(Color.BotTheme.textPrimary)
+            
+            if result.fluencyScore != nil || result.linkingScore != nil || result.prosodyScore != nil {
+                VStack(spacing: Spacing.xs) {
+                    FlowLayout(spacing: Spacing.sm) {
+                        if let accuracy = Optional(result.overallScore) {
+                            scoreChip(title: "🎯 Chính xác", score: accuracy)
+                        }
+                        if let f = result.fluencyScore {
+                            scoreChip(title: "🌊 Trôi chảy", score: f)
+                        }
+                        if let l = result.linkingScore {
+                            scoreChip(title: "🔗 Nối âm", score: l)
+                        }
+                        if let p = result.prosodyScore {
+                            scoreChip(title: "🎵 Ngữ điệu", score: p)
+                        }
+                    }
+                    if let pace = result.paceWpm {
+                        Text(String(format: "📈 Tốc độ: %.0f wpm", pace))
+                            .font(Font.BotTheme.caption)
+                            .foregroundColor(Color.BotTheme.textSecondary)
+                    }
+                }
+            }
+            
+            if viewModel.consecutivePasses < 2 || result.passed {
+                if viewModel.consecutivePasses == 1 {
+                    VStack(spacing: Spacing.xs) {
+                        Text("🔥 Lần đạt liên tiếp: 1/2")
+                            .font(Font.BotTheme.heading3)
+                            .foregroundColor(Color.BotTheme.scoreAverage)
+                        Text("Đọc lại 1 lần nữa để hoàn thành câu này")
+                            .font(Font.BotTheme.bodySecondary)
+                            .foregroundColor(Color.BotTheme.textPrimary)
+                            .multilineTextAlignment(.center)
+                        HStack(spacing: Spacing.sm) {
+                            Circle().fill(Color.BotTheme.scoreAverage).frame(width: 12, height: 12)
+                            Circle().stroke(Color.BotTheme.scoreAverage, lineWidth: 2).frame(width: 12, height: 12)
+                        }
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.BotTheme.scoreAverage.opacity(0.15))
+                    .cornerRadius(Spacing.md)
+                } else if viewModel.consecutivePasses >= 2 {
+                    Text("✅ 2/2 — Mastered!")
+                        .font(Font.BotTheme.heading3)
+                        .foregroundColor(Color.BotTheme.scoreExcellent)
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(Color.BotTheme.scoreExcellent.opacity(0.15))
+                        .cornerRadius(Spacing.md)
+                }
+            }
             
             FlowLayout(spacing: Spacing.sm) {
                 ForEach(result.wordScores) { wordScore in
@@ -275,6 +343,21 @@ private struct SentencePracticeView: View {
         .background(Color.BotTheme.backgroundSecondary)
         .cornerRadius(Spacing.md)
     }
+
+    private func scoreChip(title: String, score: Int) -> some View {
+        let color: Color
+        if score >= 80 { color = Color.BotTheme.scoreExcellent }
+        else if score >= 60 { color = Color.BotTheme.scoreAverage }
+        else { color = Color.BotTheme.scorePoor }
+        
+        return Text("\(title): \(score)")
+            .font(Font.BotTheme.caption)
+            .foregroundColor(.white)
+            .padding(.horizontal, Spacing.sm)
+            .padding(.vertical, 4)
+            .background(color)
+            .cornerRadius(4)
+    }
 }
 
 private struct TipCard: View {
@@ -307,13 +390,37 @@ private struct TipCard: View {
             }
             
             if let ipa = wordScore.targetIpa {
-                HStack(spacing: Spacing.xs) {
-                    Text("🎯 Đúng:")
-                        .font(Font.BotTheme.bodySecondary)
-                        .foregroundColor(Color.BotTheme.textSecondary)
-                    Text(ipa)
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundColor(Color.BotTheme.textPrimary)
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    HStack(spacing: Spacing.xs) {
+                        Text("🎯 Đúng:")
+                            .font(Font.BotTheme.bodySecondary)
+                            .foregroundColor(Color.BotTheme.textSecondary)
+                        Text(ipa)
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundColor(Color.BotTheme.textPrimary)
+                    }
+                    
+                    if let detected = wordScore.detectedIpa {
+                        HStack(spacing: Spacing.xs) {
+                            Text("🗣️ Bạn đọc:")
+                                .font(Font.BotTheme.bodySecondary)
+                                .foregroundColor(Color.BotTheme.textSecondary)
+                            Text(detected)
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundColor(!wordScore.missingPhonemes.isEmpty ? Color.BotTheme.scorePoor : Color.BotTheme.textPrimary)
+                        }
+                    }
+                    
+                    if !wordScore.missingPhonemes.isEmpty {
+                        HStack(spacing: Spacing.xs) {
+                            Text("⚠️ Thiếu âm:")
+                                .font(Font.BotTheme.bodySecondary)
+                                .foregroundColor(Color.BotTheme.scoreAverage)
+                            Text(wordScore.missingPhonemes.joined(separator: ", "))
+                                .font(Font.BotTheme.bodySecondary.weight(.semibold))
+                                .foregroundColor(Color.BotTheme.scoreAverage)
+                        }
+                    }
                 }
             }
             

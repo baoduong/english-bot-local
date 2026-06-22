@@ -11,10 +11,13 @@ public struct WordScore: Codable, Identifiable {
     public let errorLabel: String?
     public let targetIpa: String?
     public let practiceExamples: [String]
+    public let detectedIpa: String?
+    public let phonemeMatchRatio: Double?
+    public let missingPhonemes: [String]
     
     public let id: UUID
     
-    public init(word: String, accuracy: Int, color: String, phonemeSimilarity: Double, tip: String?, errorType: String? = nil, errorLabel: String? = nil, targetIpa: String? = nil, practiceExamples: [String] = []) {
+    public init(word: String, accuracy: Int, color: String, phonemeSimilarity: Double, tip: String?, errorType: String? = nil, errorLabel: String? = nil, targetIpa: String? = nil, practiceExamples: [String] = [], detectedIpa: String? = nil, phonemeMatchRatio: Double? = nil, missingPhonemes: [String] = []) {
         self.word = word
         self.accuracy = accuracy
         self.color = color
@@ -24,6 +27,9 @@ public struct WordScore: Codable, Identifiable {
         self.errorLabel = errorLabel
         self.targetIpa = targetIpa
         self.practiceExamples = practiceExamples
+        self.detectedIpa = detectedIpa
+        self.phonemeMatchRatio = phonemeMatchRatio
+        self.missingPhonemes = missingPhonemes
         self.id = UUID()
     }
     
@@ -38,6 +44,9 @@ public struct WordScore: Codable, Identifiable {
         errorLabel = try container.decodeIfPresent(String.self, forKey: .errorLabel)
         targetIpa = try container.decodeIfPresent(String.self, forKey: .targetIpa)
         practiceExamples = try container.decodeIfPresent([String].self, forKey: .practiceExamples) ?? []
+        detectedIpa = try container.decodeIfPresent(String.self, forKey: .detectedIpa)
+        phonemeMatchRatio = try container.decodeIfPresent(Double.self, forKey: .phonemeMatchRatio)
+        missingPhonemes = try container.decodeIfPresent([String].self, forKey: .missingPhonemes) ?? []
         id = UUID()
     }
     
@@ -51,6 +60,9 @@ public struct WordScore: Codable, Identifiable {
         case errorLabel = "error_label"
         case targetIpa = "target_ipa"
         case practiceExamples = "practice_examples"
+        case detectedIpa = "detected_ipa"
+        case phonemeMatchRatio = "phoneme_match_ratio"
+        case missingPhonemes = "missing_phonemes"
     }
 }
 
@@ -112,6 +124,28 @@ public struct PracticeSessionState: Codable {
     public let failCount: Int
     public let drillIndex: Int?
     public let drillWords: [String]?
+    public let consecutivePasses: Int
+    
+    public init(userId: String, mode: String, round: Int?, failCount: Int, drillIndex: Int?, drillWords: [String]?, consecutivePasses: Int = 0) {
+        self.userId = userId
+        self.mode = mode
+        self.round = round
+        self.failCount = failCount
+        self.drillIndex = drillIndex
+        self.drillWords = drillWords
+        self.consecutivePasses = consecutivePasses
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        userId = try container.decode(String.self, forKey: .userId)
+        mode = try container.decode(String.self, forKey: .mode)
+        round = try container.decodeIfPresent(Int.self, forKey: .round)
+        failCount = try container.decode(Int.self, forKey: .failCount)
+        drillIndex = try container.decodeIfPresent(Int.self, forKey: .drillIndex)
+        drillWords = try container.decodeIfPresent([String].self, forKey: .drillWords)
+        consecutivePasses = try container.decodeIfPresent(Int.self, forKey: .consecutivePasses) ?? 0
+    }
     
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
@@ -120,6 +154,7 @@ public struct PracticeSessionState: Codable {
         case failCount = "fail_count"
         case drillIndex = "drill_index"
         case drillWords = "drill_words"
+        case consecutivePasses = "consecutive_passes"
     }
 }
 
@@ -143,6 +178,7 @@ public struct PracticeSessionStateResponse: Codable {
     public let sampleAudio: SampleAudio?
     public let drill: DrillInfo?
     public let phaseComplete: Bool
+    public let consecutivePasses: Int
     
     enum CodingKeys: String, CodingKey {
         case session
@@ -152,6 +188,7 @@ public struct PracticeSessionStateResponse: Codable {
         case sampleAudio = "sample_audio"
         case drill
         case phaseComplete = "phase_complete"
+        case consecutivePasses = "consecutive_passes"
     }
 
     public init(from decoder: Decoder) throws {
@@ -163,6 +200,7 @@ public struct PracticeSessionStateResponse: Codable {
         sampleAudio = try c.decodeIfPresent(SampleAudio.self, forKey: .sampleAudio)
         drill = try c.decodeIfPresent(DrillInfo.self, forKey: .drill)
         phaseComplete = try c.decodeIfPresent(Bool.self, forKey: .phaseComplete) ?? false
+        consecutivePasses = try c.decodeIfPresent(Int.self, forKey: .consecutivePasses) ?? 0
     }
 }
 
@@ -194,7 +232,12 @@ public struct ScoringResult: Codable {
     public let wordScores: [WordScore]
     public let sampleAudio: SampleAudio?
     
-    public init(overallScore: Int, passed: Bool, transcript: String, expectedText: String, engine: String, weakWords: [String], errorTypes: [String], feedbackMessage: String, wordScores: [WordScore], sampleAudio: SampleAudio?) {
+    public let fluencyScore: Int?
+    public let linkingScore: Int?
+    public let prosodyScore: Int?
+    public let paceWpm: Double?
+    
+    public init(overallScore: Int, passed: Bool, transcript: String, expectedText: String, engine: String, weakWords: [String], errorTypes: [String], feedbackMessage: String, wordScores: [WordScore], sampleAudio: SampleAudio?, fluencyScore: Int? = nil, linkingScore: Int? = nil, prosodyScore: Int? = nil, paceWpm: Double? = nil) {
         self.overallScore = overallScore
         self.passed = passed
         self.transcript = transcript
@@ -205,6 +248,28 @@ public struct ScoringResult: Codable {
         self.feedbackMessage = feedbackMessage
         self.wordScores = wordScores
         self.sampleAudio = sampleAudio
+        self.fluencyScore = fluencyScore
+        self.linkingScore = linkingScore
+        self.prosodyScore = prosodyScore
+        self.paceWpm = paceWpm
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        overallScore = try container.decode(Int.self, forKey: .overallScore)
+        passed = try container.decode(Bool.self, forKey: .passed)
+        transcript = try container.decode(String.self, forKey: .transcript)
+        expectedText = try container.decode(String.self, forKey: .expectedText)
+        engine = try container.decode(String.self, forKey: .engine)
+        weakWords = try container.decode([String].self, forKey: .weakWords)
+        errorTypes = try container.decode([String].self, forKey: .errorTypes)
+        feedbackMessage = try container.decode(String.self, forKey: .feedbackMessage)
+        wordScores = try container.decode([WordScore].self, forKey: .wordScores)
+        sampleAudio = try container.decodeIfPresent(SampleAudio.self, forKey: .sampleAudio)
+        fluencyScore = try container.decodeIfPresent(Int.self, forKey: .fluencyScore)
+        linkingScore = try container.decodeIfPresent(Int.self, forKey: .linkingScore)
+        prosodyScore = try container.decodeIfPresent(Int.self, forKey: .prosodyScore)
+        paceWpm = try container.decodeIfPresent(Double.self, forKey: .paceWpm)
     }
     
     enum CodingKeys: String, CodingKey {
@@ -218,6 +283,10 @@ public struct ScoringResult: Codable {
         case feedbackMessage = "feedback_message"
         case wordScores = "word_scores"
         case sampleAudio = "sample_audio"
+        case fluencyScore = "fluency_score"
+        case linkingScore = "linking_score"
+        case prosodyScore = "prosody_score"
+        case paceWpm = "pace_wpm"
     }
 }
 
@@ -244,12 +313,23 @@ public struct PracticeAudioResponse: Codable {
     public let nextAction: NextActionHint
     public let session: PracticeSessionState
     public let currentItem: PracticeContentItem
+    public let consecutivePasses: Int
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        scoring = try container.decode(ScoringResult.self, forKey: .scoring)
+        nextAction = try container.decode(NextActionHint.self, forKey: .nextAction)
+        session = try container.decode(PracticeSessionState.self, forKey: .session)
+        currentItem = try container.decode(PracticeContentItem.self, forKey: .currentItem)
+        consecutivePasses = try container.decodeIfPresent(Int.self, forKey: .consecutivePasses) ?? 0
+    }
     
     enum CodingKeys: String, CodingKey {
         case scoring
         case nextAction = "next_action"
         case session
         case currentItem = "current_item"
+        case consecutivePasses = "consecutive_passes"
     }
 }
 
