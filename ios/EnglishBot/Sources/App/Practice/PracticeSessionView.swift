@@ -287,22 +287,57 @@ private struct TipCard: View {
     }
     
     var body: some View {
-        HStack(alignment: .top, spacing: Spacing.sm) {
-            Text(wordScore.word)
-                .font(Font.BotTheme.bodyPrimary.weight(.semibold))
-                .foregroundColor(.white)
-                .padding(.horizontal, Spacing.sm)
-                .padding(.vertical, Spacing.xs)
-                .background(scoreColor)
-                .cornerRadius(Spacing.sm)
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(alignment: .center, spacing: Spacing.sm) {
+                Text(wordScore.word)
+                    .font(Font.BotTheme.bodyPrimary.weight(.semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, Spacing.sm)
+                    .padding(.vertical, Spacing.xs)
+                    .background(scoreColor)
+                    .cornerRadius(Spacing.sm)
+                
+                if let label = wordScore.errorLabel {
+                    Text(label)
+                        .font(Font.BotTheme.bodySecondary.weight(.semibold))
+                        .foregroundColor(Color.BotTheme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
             
-            Text(wordScore.tip ?? "")
-                .font(Font.BotTheme.bodySecondary)
-                .foregroundColor(Color.BotTheme.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if let ipa = wordScore.targetIpa {
+                HStack(spacing: Spacing.xs) {
+                    Text("🎯 Đúng:")
+                        .font(Font.BotTheme.bodySecondary)
+                        .foregroundColor(Color.BotTheme.textSecondary)
+                    Text(ipa)
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundColor(Color.BotTheme.textPrimary)
+                }
+            }
+            
+            if let tip = wordScore.tip, !tip.isEmpty {
+                Text(tip)
+                    .font(Font.BotTheme.bodySecondary)
+                    .foregroundColor(Color.BotTheme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            
+            if !wordScore.practiceExamples.isEmpty {
+                HStack(alignment: .top, spacing: Spacing.xs) {
+                    Text("📚 Luyện thêm:")
+                        .font(Font.BotTheme.bodySecondary)
+                        .foregroundColor(Color.BotTheme.textSecondary)
+                    Text(wordScore.practiceExamples.joined(separator: ", "))
+                        .font(Font.BotTheme.bodySecondary.weight(.semibold))
+                        .foregroundColor(Color.BotTheme.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
-        .padding(Spacing.sm)
+        .padding(Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.BotTheme.backgroundMain)
         .cornerRadius(Spacing.sm)
     }

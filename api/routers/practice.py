@@ -13,7 +13,13 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from analysis.pronunciation import analyze_audio as analyze_audio_with_whisper
-from analysis.errors import ERROR_TYPE_LABELS, classify_error, get_articulatory_tip
+from analysis.errors import (
+    ERROR_TYPE_LABELS,
+    classify_error,
+    get_articulatory_tip,
+    get_error_examples,
+    get_target_ipa,
+)
 from analysis.phonemes import clean_word, phoneme_similarity
 from api.models import (
     DrillInfo,
@@ -310,7 +316,20 @@ def _build_word_scores(expected_text: str, analysis: tuple[Any, ...]) -> tuple[l
         clean = clean_word(token)
         raw = score_map.get(clean)
         if not raw:
-            words.append(WordScore(word=token, accuracy=0, color="gray", phoneme_similarity=0.0, tip=get_articulatory_tip("omission")))
+            err_type = "omission"
+            words.append(
+                WordScore(
+                    word=token,
+                    accuracy=0,
+                    color="gray",
+                    phoneme_similarity=0.0,
+                    tip=get_articulatory_tip(err_type),
+                    error_type=err_type,
+                    error_label=ERROR_TYPE_LABELS.get(err_type, ERROR_TYPE_LABELS["general"]),
+                    target_ipa=get_target_ipa(token),
+                    practice_examples=get_error_examples(err_type),
+                )
+            )
             weak_words.append(clean)
             labels.append(ERROR_TYPE_LABELS["omission"])
             continue
@@ -320,9 +339,17 @@ def _build_word_scores(expected_text: str, analysis: tuple[Any, ...]) -> tuple[l
         if raw.get("score") == 0:
             color, phon_sim, accuracy = cast(Literal["gray"], "gray"), 0.0, 0
         tip = None
+        error_type = None
+        error_label = None
+        target_ipa = None
+        practice_examples: list[str] = []
         if not raw.get("passed"):
             err_type = next((etype for word, etype in error_types if word == clean), classify_error(token, heard))
-            labels.append(ERROR_TYPE_LABELS.get(err_type, ERROR_TYPE_LABELS["general"]))
+            error_type = err_type
+            error_label = ERROR_TYPE_LABELS.get(err_type, ERROR_TYPE_LABELS["general"])
+            target_ipa = get_target_ipa(token)
+            practice_examples = get_error_examples(err_type)
+            labels.append(error_label)
             tip = get_articulatory_tip(err_type)
             weak_words.append(clean)
         words.append(
@@ -332,6 +359,10 @@ def _build_word_scores(expected_text: str, analysis: tuple[Any, ...]) -> tuple[l
                 color=color,
                 phoneme_similarity=float(phon_sim),
                 tip=tip,
+                error_type=error_type,
+                error_label=error_label,
+                target_ipa=target_ipa,
+                practice_examples=practice_examples,
             )
         )
     return words, sorted(set(weak_words)), sorted(set(labels)), score_map

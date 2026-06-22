@@ -37,6 +37,10 @@ class WordScore(BaseModel):
     color: Literal["green", "yellow", "red", "gray"]
     phoneme_similarity: float = Field(ge=0.0, le=1.0)
     tip: Optional[str] = None
+    error_type: Optional[str] = None
+    error_label: Optional[str] = None
+    target_ipa: Optional[str] = None
+    practice_examples: list[str] = Field(default_factory=list)
 
 
 class SampleAudio(BaseModel):

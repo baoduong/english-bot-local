@@ -7,15 +7,23 @@ public struct WordScore: Codable, Identifiable {
     public let color: String
     public let phonemeSimilarity: Double
     public let tip: String?
+    public let errorType: String?
+    public let errorLabel: String?
+    public let targetIpa: String?
+    public let practiceExamples: [String]
     
     public let id: UUID
     
-    public init(word: String, accuracy: Int, color: String, phonemeSimilarity: Double, tip: String?) {
+    public init(word: String, accuracy: Int, color: String, phonemeSimilarity: Double, tip: String?, errorType: String? = nil, errorLabel: String? = nil, targetIpa: String? = nil, practiceExamples: [String] = []) {
         self.word = word
         self.accuracy = accuracy
         self.color = color
         self.phonemeSimilarity = phonemeSimilarity
         self.tip = tip
+        self.errorType = errorType
+        self.errorLabel = errorLabel
+        self.targetIpa = targetIpa
+        self.practiceExamples = practiceExamples
         self.id = UUID()
     }
     
@@ -26,6 +34,10 @@ public struct WordScore: Codable, Identifiable {
         color = try container.decode(String.self, forKey: .color)
         phonemeSimilarity = try container.decode(Double.self, forKey: .phonemeSimilarity)
         tip = try container.decodeIfPresent(String.self, forKey: .tip)
+        errorType = try container.decodeIfPresent(String.self, forKey: .errorType)
+        errorLabel = try container.decodeIfPresent(String.self, forKey: .errorLabel)
+        targetIpa = try container.decodeIfPresent(String.self, forKey: .targetIpa)
+        practiceExamples = try container.decodeIfPresent([String].self, forKey: .practiceExamples) ?? []
         id = UUID()
     }
     
@@ -35,6 +47,10 @@ public struct WordScore: Codable, Identifiable {
         case color
         case phonemeSimilarity = "phoneme_similarity"
         case tip
+        case errorType = "error_type"
+        case errorLabel = "error_label"
+        case targetIpa = "target_ipa"
+        case practiceExamples = "practice_examples"
     }
 }
 

@@ -79,6 +79,16 @@ VIETNAMESE_L1_COMPARISON = {
     "sh_sound": "Âm /ʃ/ gần giống 'x' trong 'xin' nhưng môi tròn hơn. Người Việt hay nói 's' thay vì 'sh'.",
 }
 
+ERROR_TYPE_EXAMPLES = {
+    "omission": [],
+    "final_consonant": ["cats", "books", "stopped", "wished", "wants", "needs"],
+    "th_sound": ["think", "three", "throw", "thanks", "this", "those"],
+    "r_l_confusion": ["right", "light", "read", "lead", "rice", "lice"],
+    "vowel_stress": ["PHOtograph", "phoTOgraphy", "REcord (n)", "reCORD (v)"],
+    "sh_sound": ["ship", "shop", "wish", "fish", "share", "shine"],
+    "general": [],
+}
+
 
 def get_articulatory_tip(error_type):
     """Returns formatted articulatory tip for a given error type."""
@@ -88,3 +98,20 @@ def get_articulatory_tip(error_type):
     if l1:
         result += f"\n🇻🇳 **So với tiếng Việt:** {l1}"
     return result
+
+
+def get_error_examples(error_type: str) -> list[str]:
+    return ERROR_TYPE_EXAMPLES.get(error_type, [])
+
+
+def get_target_ipa(word: str) -> str | None:
+    try:
+        clean = clean_word(word)
+        if not clean:
+            return None
+        result = ipa.convert(clean)
+        if "*" in result:
+            return None
+        return f"/{result}/"
+    except Exception:
+        return None
