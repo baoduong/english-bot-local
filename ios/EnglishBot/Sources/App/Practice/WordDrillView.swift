@@ -9,17 +9,32 @@ public struct WordDrillView: View {
     public var body: some View {
         VStack(spacing: Spacing.xl) {
             // Header
-            HStack {
-                Button("Stop Drill") {
-                    Task { await viewModel.stop() }
-                }
-                .foregroundColor(Color.BotTheme.textSecondary)
-                
-                Spacer()
-                
-                Text(viewModel.drillProgress)
-                    .font(Font.BotTheme.caption)
+            VStack(spacing: Spacing.xs) {
+                HStack {
+                    Button("Stop Drill") {
+                        Task { await viewModel.stop() }
+                    }
                     .foregroundColor(Color.BotTheme.textSecondary)
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        Task { await viewModel.skip() }
+                    }) {
+                        HStack(spacing: Spacing.xs) {
+                            Image(systemName: "forward.fill")
+                            Text("Bỏ qua từ này")
+                        }
+                    }
+                    .foregroundColor(Color.BotTheme.scoreAverage)
+                }
+                
+                if !viewModel.drillProgress.isEmpty {
+                    Text(viewModel.drillProgress)
+                        .font(Font.BotTheme.caption)
+                        .foregroundColor(Color.BotTheme.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
             }
             
             Spacer()
