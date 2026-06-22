@@ -343,12 +343,26 @@ class NextActionHint(BaseModel):
     focus_words: Optional[list[str]] = None
 
 
+class CoachingHint(BaseModel):
+    action: Literal["continue", "scaffold", "break_down", "skip_with_note"]
+    message_vi: str
+    scaffold_word: str | None = None
+    scaffold_reason_vi: str | None = None
+    syllables: list[str] = Field(default_factory=list)
+    articulatory_tip_vi: str | None = None
+    skip_reason_vi: str | None = None
+    difficulty: int = Field(ge=1, le=10)
+    attempt_count: int = Field(ge=0)
+    max_attempts: int = Field(ge=1)
+
+
 class PracticeAudioResponse(BaseModel):
     scoring: ScoringResult
     next_action: NextActionHint
     session: PracticeSessionState
     current_item: PracticeContentItem
     consecutive_passes: int = 0
+    coaching: CoachingHint | None = None
 
 
 # ─── Progress ─────────────────────────────────────────────────────────────────

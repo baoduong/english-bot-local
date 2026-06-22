@@ -354,3 +354,76 @@ Return ONLY a valid JSON object:
     "overall_grade": "A/B/C/D"
 }}
 """
+
+
+def adaptive_coaching_prompt(
+    drill_word: str,
+    target_ipa: str | None,
+    detected_ipa: str | None,
+    missing_phonemes: list[str],
+    attempt_count: int,
+    max_attempts: int,
+    difficulty: int,
+    recent_scores: list[int],
+    user_struggling_phonemes: list[str],
+    sentence_context: str | None = None,
+) -> str:
+    payload = {
+        "drill_word": drill_word,
+        "target_ipa": target_ipa,
+        "detected_ipa": detected_ipa,
+        "missing_phonemes": missing_phonemes,
+        "attempt_count": attempt_count,
+        "max_attempts": max_attempts,
+        "difficulty": difficulty,
+        "recent_scores": recent_scores,
+        "user_struggling_phonemes": user_struggling_phonemes,
+        "sentence_context": sentence_context,
+    }
+    context_json = json.dumps(payload, ensure_ascii=False, indent=2)
+
+    return f"""You are an expert adaptive pronunciation coach for Vietnamese learners of English.
+
+Analyze the learner's struggle state and choose EXACTLY ONE next teaching action for the drill target.
+
+Learner context:
+{context_json}
+
+Your job is to decide one of 4 actions:
+- continue: learner is close, give one precise cue and let them retry the same target
+- scaffold: introduce one easier stepping-stone English word before returning to the hard word
+- break_down: split the target into smaller pronounceable chunks/syllables to drill one by one
+- skip_with_note: stop the struggle loop for now, explain briefly, and revisit later
+
+Decision guidance:
+- If attempt_count < max_attempts AND missing_phonemes contains only 1 phoneme: prefer "continue"
+- If difficulty >= 7 AND attempt_count >= max_attempts - 1: prefer "scaffold"
+- If the word naturally has 2+ pronounceable chunks and attempt_count >= max_attempts: consider "break_down"
+- If attempt_count >= max_attempts AND there is no clear progress: use "skip_with_note"
+- Example scaffolds: task -> ask -> mask -> task; three -> tree -> three; world -> word -> world
+
+Critical language rules:
+- message_vi, scaffold_reason_vi, articulatory_tip_vi, skip_reason_vi MUST be in natural Vietnamese because the learner sees them directly
+- drill_word, scaffold_word, syllables MUST stay in English only
+- Keep message_vi concise and supportive, maximum 150 characters
+- articulatory_tip_vi must be specific mouth/tongue/lip guidance, not generic encouragement
+- If action is scaffold, choose a truly simpler English stepping-stone word closely related in sound
+- If action is break_down, provide 1-4 chunks only, easy to drill sequentially
+
+Return ONLY a valid JSON object with this exact schema:
+{{
+  "action": "continue" | "scaffold" | "break_down" | "skip_with_note",
+  "message_vi": "Vietnamese message shown directly to the learner (≤150 chars)",
+  "scaffold_word": "<simpler English word>",
+  "scaffold_reason_vi": "<Vietnamese explanation why this scaffold helps>",
+  "syllables": ["tas", "ks"],
+  "articulatory_tip_vi": "<specific Vietnamese tongue/lip guidance>",
+  "skip_reason_vi": "<Vietnamese explanation why skipping now>"
+}}
+
+Field rules:
+- Always include: action, message_vi, articulatory_tip_vi
+- Include scaffold_word and scaffold_reason_vi only when action = "scaffold"
+- Include syllables only when action = "break_down"
+- Include skip_reason_vi only when action = "skip_with_note"
+"""

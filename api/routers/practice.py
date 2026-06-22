@@ -12,6 +12,7 @@ from uuid import uuid4
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
+from analysis.coaching_types import validate_coaching_response
 from analysis.pronunciation import analyze_audio as analyze_audio_with_whisper
 from analysis.errors import (
     ERROR_TYPE_LABELS,
@@ -21,7 +22,11 @@ from analysis.errors import (
     get_target_ipa,
 )
 from analysis.phonemes import clean_word, phoneme_similarity
+from api.models import CoachingHint
 from engines.phoneme_alignment import analyze_phonemes_per_word
+from engines.difficulty_analyzer import compute_max_attempts, compute_word_difficulty
+from engines.ollama_client import OllamaClient
+from engines.prompts import adaptive_coaching_prompt
 from engines.prosody_analyzer import get_prosody_analyzer
 from api.models import (
     DrillInfo,
@@ -57,10 +62,12 @@ from db.tracking import log_error_pattern, log_score
 from db.users import get_or_create_user, needs_onboarding
 from db.word_stats import record_word_attempts_batch
 from engines.tts import generate_chunked_audio, generate_sample_audio
+from db.connection import get_db_connection
 
 router = APIRouter(prefix="/practice", tags=["Practice"])
 
 _SAMPLE_TTL = timedelta(minutes=10)
+_OLLAMA_CLIENT = OllamaClient()
 
 
 def _error(status_code: int, code: str, message: str, detail: Any | None = None) -> HTTPException:
@@ -225,6 +232,7 @@ def _build_new_session_sync(user_id: str) -> dict[str, Any]:
         "mode": "curriculum_practice",
         "drill_words": [],
         "drill_index": 0,
+        "drill_attempts": {},
         "drill_fails": 0,
         "drill_passed": 0,
         "drill_done": False,
@@ -252,6 +260,7 @@ def _advance_to_next_content_sync(session: dict[str, Any]) -> dict[str, Any] | N
     session["content_id"] = next_content["id"]
     session["fail_count"] = 0
     session["drill_done"] = False
+    session["drill_attempts"] = {}
     progress = get_phase_progress(session["current_phase_id"])
     session["phase_mastered_count"] = progress["mastered"]
     session["phase_total_content"] = progress["total"]
@@ -414,6 +423,122 @@ def _record_practice_metrics_sync(user_id: str, sentence: str, score: int, score
         record_word_attempts_batch(user_id, score_map)
 
 
+def _get_recent_scores_sync(user_id: str, limit: int = 5) -> list[int]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT score FROM score_history WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+            (user_id, limit),
+        )
+        return [int(row["score"] or 0) for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def _get_user_struggling_phonemes_sync(user_id: str, limit: int = 5) -> list[str]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT error_type, SUM(count) AS total_count
+            FROM error_patterns
+            WHERE user_id = ?
+            GROUP BY error_type
+            ORDER BY total_count DESC, error_type ASC
+            LIMIT ?
+            """,
+            (user_id, limit),
+        )
+        return [str(row["error_type"]) for row in cursor.fetchall() if row["error_type"]]
+    finally:
+        conn.close()
+
+
+def _get_current_drill_word(session: dict[str, Any]) -> str | None:
+    if session.get("mode") != "word_drill":
+        return None
+    words = list(session.get("drill_words") or [])
+    idx = int(session.get("drill_index") or 0)
+    if 0 <= idx < len(words):
+        return words[idx]
+    return None
+
+
+def _reset_next_drill_attempt_sync(session: dict[str, Any]) -> None:
+    next_word = _get_current_drill_word(session)
+    if next_word:
+        session.setdefault("drill_attempts", {}).pop(next_word, None)
+
+
+def _maybe_generate_coaching_sync(
+    *,
+    user_id: str,
+    session: dict[str, Any],
+    current_content: dict[str, Any],
+    overall_score: int,
+    target_words_passed: bool,
+    word_scores: list[WordScore],
+) -> CoachingHint | None:
+    if overall_score >= 80 or target_words_passed:
+        return None
+
+    sentence_context = current_content.get("sentence")
+    drill_word = _get_current_drill_word(session)
+    if drill_word:
+        attempt_count = int((session.get("drill_attempts") or {}).get(drill_word, 0))
+        if attempt_count < 2:
+            return None
+        target_score = next((ws for ws in word_scores if clean_word(ws.word) == clean_word(drill_word)), None)
+        target_ipa = target_score.target_ipa if target_score else get_target_ipa(drill_word)
+        detected_ipa = target_score.detected_ipa if target_score else None
+        missing_phonemes = list(target_score.missing_phonemes if target_score else [])
+        difficulty = compute_word_difficulty(drill_word, user_id)
+        max_attempts = compute_max_attempts(difficulty)
+        prompt_word = drill_word
+    else:
+        attempt_count = int(session.get("fail_count") or 0)
+        if attempt_count < 3:
+            return None
+        target_words = list(current_content.get("target_words") or [])
+        prompt_word = target_words[0] if target_words else current_content.get("sentence") or "sentence"
+        target_score = next((ws for ws in word_scores if clean_word(ws.word) in {clean_word(w) for w in target_words}), None)
+        target_ipa = target_score.target_ipa if target_score else get_target_ipa(prompt_word)
+        detected_ipa = target_score.detected_ipa if target_score else None
+        missing_phonemes = list(target_score.missing_phonemes if target_score else [])
+        difficulty = compute_word_difficulty(prompt_word, user_id)
+        max_attempts = compute_max_attempts(difficulty)
+
+    recent_scores = _get_recent_scores_sync(user_id)
+    user_struggling_phonemes = _get_user_struggling_phonemes_sync(user_id)
+
+    try:
+        coaching_payload = _OLLAMA_CLIENT.generate_json_sync(
+            adaptive_coaching_prompt(
+                drill_word=prompt_word,
+                target_ipa=target_ipa,
+                detected_ipa=detected_ipa,
+                missing_phonemes=missing_phonemes,
+                attempt_count=attempt_count,
+                max_attempts=max_attempts,
+                difficulty=difficulty,
+                recent_scores=recent_scores,
+                user_struggling_phonemes=user_struggling_phonemes,
+                sentence_context=sentence_context,
+            ),
+            validate_coaching_response,
+        )
+    except Exception as exc:
+        print(f"⚠️ Adaptive coaching failed: {exc}")
+        return None
+
+    coaching_payload["difficulty"] = difficulty
+    coaching_payload["attempt_count"] = attempt_count
+    coaching_payload["max_attempts"] = max_attempts
+    return CoachingHint(**coaching_payload)
+
+
 @router.post("/session/start", response_model=PracticeSessionStateResponse)
 async def start_practice_session(body: PracticeSessionStartRequest) -> PracticeSessionStateResponse:
     await asyncio.to_thread(_require_user_sync, body.user_id)
@@ -447,10 +572,12 @@ async def skip_practice_item(body: PracticeSessionActionRequest) -> PracticeSkip
 
     if session.get("mode") == "word_drill" and session.get("drill_words"):
         session["drill_index"] = min(int(session.get("drill_index") or 0) + 1, len(session["drill_words"]))
+        _reset_next_drill_attempt_sync(session)
         if session["drill_index"] >= len(session["drill_words"]):
             session["mode"] = "curriculum_practice"
             session["drill_words"] = []
             session["drill_index"] = 0
+            session["drill_attempts"] = {}
             session["drill_done"] = True
     else:
         advanced = await asyncio.to_thread(_advance_to_next_content_sync, session)
@@ -541,6 +668,21 @@ async def score_practice_audio(
             per_word_phonemes,
         )
 
+        if session.get("mode") == "word_drill":
+            current_drill_word = _get_current_drill_word(session)
+            if current_drill_word:
+                normalized_drill_word = clean_word(current_drill_word)
+                is_drill_word_passing = False
+                for ws in word_scores:
+                    if clean_word(ws.word) == normalized_drill_word and ws.accuracy >= 80:
+                        is_drill_word_passing = True
+                        break
+                drill_attempts = session.setdefault("drill_attempts", {})
+                if not is_drill_word_passing:
+                    drill_attempts[current_drill_word] = int(drill_attempts.get(current_drill_word, 0) or 0) + 1
+                else:
+                    drill_attempts.pop(current_drill_word, None)
+
         await asyncio.to_thread(_record_practice_metrics_sync, user_id, expected, int(overall_score), score_map, error_types)
 
         target_words = current_content.get("target_words", []) or []
@@ -596,6 +738,7 @@ async def score_practice_audio(
                 session["mode"] = "word_drill"
                 session["drill_words"] = weak_words
                 session["drill_index"] = 0
+                session["drill_attempts"] = {}
                 next_action = NextActionHint(
                     action="word_drill",
                     message="Second failed attempt. Starting word drill.",
@@ -603,6 +746,16 @@ async def score_practice_audio(
                 )
             else:
                 next_action = NextActionHint(action="retry", message="Retry the same sentence.", focus_words=weak_words or None)
+
+        coaching = await asyncio.to_thread(
+            _maybe_generate_coaching_sync,
+            user_id=user_id,
+            session=session,
+            current_content=current_content,
+            overall_score=int(overall_score),
+            target_words_passed=target_words_passed,
+            word_scores=word_scores,
+        )
 
         progress = await asyncio.to_thread(get_phase_progress, session["current_phase_id"])
         session["phase_mastered_count"] = progress["mastered"]
@@ -643,6 +796,7 @@ async def score_practice_audio(
             ),
             current_item=current_item_model,
             consecutive_passes=new_consec,
+            coaching=coaching,
         )
     finally:
         with suppress(Exception):
