@@ -22,6 +22,7 @@ from api.models import (
     PracticeContentItem,
 )
 from analysis.phase_engine import PhaseEngine
+from analysis.phase_summary import build_phase_performance_summary
 from db.curriculum import (
     activate_phase,
     archive_curriculum,
@@ -242,6 +243,11 @@ async def advance_phase(
 
     if next_action == "generate_next_phase":
         previous_phases = _ensure_list(await asyncio.to_thread(get_phases_for_curriculum, curriculum["id"]))
+        performance_summary = await asyncio.to_thread(
+            build_phase_performance_summary,
+            body.user_id,
+            _coerce_int(active_phase.get("id")),
+        )
         new_phase_id, _ = await asyncio.to_thread(
             generator.generate_full_phase,
             curriculum["id"],
@@ -249,7 +255,7 @@ async def advance_phase(
             _coerce_text(curriculum.get("goal_description")),
             _coerce_int(result.get("next_phase_number"), _coerce_int(active_phase.get("phase_number"), 1) + 1),
             previous_phases,
-            _coerce_text(decision.get("reasoning")),
+            performance_summary,
         )
         await asyncio.to_thread(activate_phase, new_phase_id)
         await asyncio.to_thread(delete_session, body.user_id)

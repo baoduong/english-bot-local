@@ -76,23 +76,24 @@ def complete_curriculum(curriculum_id) -> None:
 
 
 def increment_phase_number(curriculum_id) -> int:
-    """Increment current_phase_number by 1, return new value."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        """UPDATE curriculums
-           SET current_phase_number = current_phase_number + 1
-           WHERE id = ?""",
-        (curriculum_id,)
-    )
-    conn.commit()
-    cursor.execute(
-        "SELECT current_phase_number FROM curriculums WHERE id = ?",
+        "SELECT COALESCE(MAX(phase_number), 0) AS max_phase_number FROM phases WHERE curriculum_id = ?",
         (curriculum_id,)
     )
     row = cursor.fetchone()
+    new_phase_number = int(row["max_phase_number"] or 0) + 1
+
+    cursor.execute(
+        """UPDATE curriculums
+           SET current_phase_number = ?
+           WHERE id = ?""",
+        (new_phase_number, curriculum_id)
+    )
+    conn.commit()
     conn.close()
-    return row["current_phase_number"]
+    return new_phase_number
 
 
 # ─────────────────────────────────────────────
