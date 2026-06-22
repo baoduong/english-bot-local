@@ -8,7 +8,7 @@ public struct WordScore: Codable, Identifiable {
     public let phonemeSimilarity: Double
     public let tip: String?
     
-    public var id: String { word }
+    public let id: UUID
     
     public init(word: String, accuracy: Int, color: String, phonemeSimilarity: Double, tip: String?) {
         self.word = word
@@ -16,6 +16,17 @@ public struct WordScore: Codable, Identifiable {
         self.color = color
         self.phonemeSimilarity = phonemeSimilarity
         self.tip = tip
+        self.id = UUID()
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        word = try container.decode(String.self, forKey: .word)
+        accuracy = try container.decode(Int.self, forKey: .accuracy)
+        color = try container.decode(String.self, forKey: .color)
+        phonemeSimilarity = try container.decode(Double.self, forKey: .phonemeSimilarity)
+        tip = try container.decodeIfPresent(String.self, forKey: .tip)
+        id = UUID()
     }
     
     enum CodingKeys: String, CodingKey {
