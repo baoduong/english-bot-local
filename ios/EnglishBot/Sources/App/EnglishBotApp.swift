@@ -5,6 +5,7 @@ import DesignSystem
 
 public extension Notification.Name {
     static let onboardingConfirmed = Notification.Name("eb.onboardingConfirmed")
+    static let goalReset = Notification.Name("eb.goalReset")
 }
 
 // MARK: - Navigation Route Token
@@ -34,6 +35,11 @@ public struct EnglishBotApp: View {
             } else {
                 mainTabView
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .goalReset)) { _ in
+            onboardingDone = false
+            activeTab = 0
+            onboardingNavigated = false
         }
     }
 

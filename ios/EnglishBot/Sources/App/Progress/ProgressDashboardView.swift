@@ -4,6 +4,7 @@ import DesignSystem
 public struct ProgressDashboardView: View {
     private let userId: String
     @StateObject private var viewModel: ProgressViewModel
+    @State private var showResetConfirm: Bool = false
     
     public init(userId: String) {
         self.userId = userId
@@ -104,6 +105,46 @@ public struct ProgressDashboardView: View {
         .background(Color.BotTheme.backgroundMain.ignoresSafeArea())
         .onAppear {
             Task { await viewModel.fetchProgress() }
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                if viewModel.isResettingGoal {
+                    ProgressView()
+                } else {
+                    Menu {
+                        Button(role: .destructive, action: {
+                            showResetConfirm = true
+                        }) {
+                            Label("Đổi mục tiêu", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                }
+            }
+        }
+        .alert("Đổi mục tiêu học tập?", isPresented: $showResetConfirm) {
+            Button("Huỷ", role: .cancel) {}
+            Button("Đồng ý đổi", role: .destructive) {
+                Task {
+                    let ok = await viewModel.resetGoal()
+                    if ok {
+                        NotificationCenter.default.post(name: .goalReset, object: nil)
+                    }
+                }
+            }
+        } message: {
+            Text("Lộ trình hiện tại sẽ được lưu trữ. Bạn sẽ bắt đầu onboarding để đặt mục tiêu mới. Lịch sử điểm số vẫn được giữ trong tài khoản của bạn.")
+        }
+        .alert("Lỗi", isPresented: Binding(
+            get: { viewModel.error != nil },
+            set: { if !$0 { viewModel.error = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            if let error = viewModel.error {
+                Text(error)
+            }
         }
     }
 }

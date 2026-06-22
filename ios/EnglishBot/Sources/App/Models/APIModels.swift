@@ -232,6 +232,35 @@ public struct PhaseDetailResponse: Codable {
     }
 }
 
+public struct ArchiveCurriculumRequest: Codable {
+    public let userId: String
+    public let confirm: Bool
+
+    public init(userId: String, confirm: Bool = true) {
+        self.userId = userId
+        self.confirm = confirm
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case confirm
+    }
+}
+
+public struct ArchiveCurriculumResponse: Codable {
+    public let archivedCurriculumId: Int
+    public let status: String
+    public let onboardingRequired: Bool
+    public let message: String
+
+    enum CodingKeys: String, CodingKey {
+        case archivedCurriculumId = "archived_curriculum_id"
+        case status
+        case onboardingRequired = "onboarding_required"
+        case message
+    }
+}
+
 public struct WebSocketEnvelope: Codable {
     public let event: String
     public let timestamp: String

@@ -197,6 +197,18 @@ public class APIClient: ObservableObject {
         return try decode(data, type: ProgressResponse.self)
     }
 
+    public func archiveCurriculum(userId: String) async throws -> ArchiveCurriculumResponse {
+        guard let url = URL(string: "/curriculum/archive", relativeTo: baseURL) else { throw APIError.invalidURL }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encode(ArchiveCurriculumRequest(userId: userId, confirm: true))
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        if !(200...299).contains(httpResponse.statusCode) { throw APIError.httpError(httpResponse.statusCode) }
+        return try decode(data, type: ArchiveCurriculumResponse.self)
+    }
+
     public func sampleAudioURL(userId: String, word: String? = nil, expectedText: String? = nil, slow: Bool = false) -> URL? {
         var components = "/practice/audio/sample?user_id=\(userId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? userId)"
         if let word = word, let enc = word.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
