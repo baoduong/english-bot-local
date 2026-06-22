@@ -282,7 +282,7 @@ def get_phase_content(phase_id) -> list:
     return [_parse_content_row(r) for r in rows]
 
 
-def get_next_practice_sentence(phase_id) -> dict | None:
+def get_next_practice_sentence(phase_id, exclude_content_id=None) -> dict | None:
     """Return the next sentence to practice.
 
     Priority: unattempted first (attempt_count=0), then struggling (low last_score).
@@ -291,13 +291,22 @@ def get_next_practice_sentence(phase_id) -> dict | None:
     """
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        """SELECT * FROM phase_content
-           WHERE phase_id = ? AND mastered_at IS NULL
-           ORDER BY attempt_count ASC, difficulty_score ASC NULLS LAST, last_score ASC NULLS FIRST
-            LIMIT 1""",
-        (phase_id,)
-    )
+    if exclude_content_id:
+        cursor.execute(
+            """SELECT * FROM phase_content
+               WHERE phase_id = ? AND mastered_at IS NULL AND id != ?
+               ORDER BY attempt_count ASC, difficulty_score ASC NULLS LAST, last_score ASC NULLS FIRST
+               LIMIT 1""",
+            (phase_id, exclude_content_id),
+        )
+    else:
+        cursor.execute(
+            """SELECT * FROM phase_content
+               WHERE phase_id = ? AND mastered_at IS NULL
+               ORDER BY attempt_count ASC, difficulty_score ASC NULLS LAST, last_score ASC NULLS FIRST
+               LIMIT 1""",
+            (phase_id,),
+        )
     row = cursor.fetchone()
     conn.close()
     return _parse_content_row(row) if row else None

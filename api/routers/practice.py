@@ -225,7 +225,10 @@ def _build_new_session_sync(user_id: str) -> dict[str, Any]:
 
 
 def _advance_to_next_content_sync(session: dict[str, Any]) -> dict[str, Any] | None:
-    next_content = get_next_practice_sentence(session["current_phase_id"])
+    current_id = session.get("content_id")
+    next_content = get_next_practice_sentence(session["current_phase_id"], exclude_content_id=current_id)
+    if not next_content:
+        next_content = get_next_practice_sentence(session["current_phase_id"])
     if not next_content:
         return None
     session["sentence"] = next_content["sentence"]
@@ -408,8 +411,13 @@ async def skip_practice_item(body: PracticeSessionActionRequest) -> PracticeSkip
 async def stop_practice_session(body: PracticeSessionActionRequest) -> PracticeStopResponse:
     await asyncio.to_thread(_require_user_sync, body.user_id)
     session = await asyncio.to_thread(_load_session_sync, body.user_id)
-    if not session:
-        raise _error(404, "SESSION_NOT_FOUND", "No active practice session found.")
+    if not session or session.get("mode") not in {"curriculum_practice", "word_drill"}:
+        return PracticeStopResponse(
+            action="stopped",
+            session_cleared=False,
+            summary=SessionEndSummary(total_attempts=0, passed_first_try=0, needed_drill=0, skipped=0, final_mode="none"),
+            message="No active practice session.",
+        )
 
     stats = session.get("session_stats") or {}
     summary = SessionEndSummary(
@@ -475,12 +483,23 @@ async def score_practice_audio(
             next_action = NextActionHint(action="pass", message="Passed. Continue to the next sentence.")
         else:
             session["fail_count"] = int(session.get("fail_count") or 0) + 1
-            if session["fail_count"] >= 2 and weak_words:
+            if session["fail_count"] >= 4:
+                await asyncio.to_thread(_advance_to_next_content_sync, session)
+                session["fail_count"] = 0
+                next_action = NextActionHint(
+                    action="pass",
+                    message="Moving on. You can revisit this sentence later.",
+                    focus_words=weak_words or None,
+                )
+            elif session["fail_count"] >= 2 and weak_words:
                 session.setdefault("session_stats", {}).setdefault("needed_drill", 0)
                 session["session_stats"]["needed_drill"] += 1
+                session["mode"] = "word_drill"
+                session["drill_words"] = weak_words
+                session["drill_index"] = 0
                 next_action = NextActionHint(
                     action="word_drill",
-                    message="Second failed attempt. Suggested next step: word drill.",
+                    message="Second failed attempt. Starting word drill.",
                     focus_words=weak_words,
                 )
             else:
