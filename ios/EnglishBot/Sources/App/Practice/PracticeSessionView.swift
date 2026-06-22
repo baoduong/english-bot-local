@@ -212,29 +212,99 @@ private struct SentencePracticeView: View {
         }
     }
     
-    private func headerText(for result: ScoringResult) -> String {
-        if result.passed {
-            return viewModel.consecutivePasses == 1 ? "Tốt! Còn 1 lần nữa" : "Great job!"
-        }
-        return "Let's try again"
+    private struct HeaderInfo {
+        let text: String
+        let subtitle: String
+        let color: Color
+        let showTargetWords: Bool
     }
     
-    private func headerColor(for result: ScoringResult) -> Color {
-        if result.passed {
-            return viewModel.consecutivePasses == 1 ? Color.BotTheme.scoreAverage : Color.BotTheme.scoreExcellent
+    private func headerForOutcome(result: ScoringResult, nextAction: NextActionHint?, consecutive: Int) -> HeaderInfo {
+        let action = nextAction?.action ?? ""
+        
+        // Rule 1: Just mastered
+        if action == "pass" && consecutive >= 2 {
+            return HeaderInfo(text: "✅ Mastered!", subtitle: "Bạn đã hoàn thành câu này 2 lần liên tiếp!", color: Color.BotTheme.scoreExcellent, showTargetWords: false)
         }
-        return Color.BotTheme.scoreAverage
+        
+        // Rule 2: First quality pass, need one more
+        if action == "retry" && consecutive == 1 {
+            return HeaderInfo(text: "🔥 Tốt! Còn 1 lần nữa", subtitle: "Đọc lại 1 lần nữa để hoàn thành (1/2)", color: Color.BotTheme.scoreAverage, showTargetWords: false)
+        }
+        
+        // Rule 3: High overall but target words failed quality bar
+        if action == "retry" && consecutive == 0 && result.overallScore >= 80 {
+            return HeaderInfo(text: "⚠️ Cần đọc chuẩn target words", subtitle: "Điểm tổng tốt (\(result.overallScore)/100), nhưng câu này có từ trọng tâm chưa đạt. Tập trung vào những từ này:", color: Color.BotTheme.scoreAverage, showTargetWords: true)
+        }
+        
+        // Rule 4: Going into word drill
+        if action == "word_drill" {
+            return HeaderInfo(text: "📚 Hãy luyện các từ yếu trước", subtitle: "Sau 2 lần chưa đạt — chuyển sang luyện từng từ. Bấm Start Word Drill bên dưới.", color: Color.BotTheme.scoreAverage, showTargetWords: false)
+        }
+        
+        // Rule 5: Auto-advance after too many failures
+        if action == "pass" && result.overallScore < 80 {
+            return HeaderInfo(text: "👉 Bỏ qua câu này", subtitle: "Đã thử nhiều lần — quay lại câu này sau khi luyện thêm.", color: Color.BotTheme.textSecondary, showTargetWords: false)
+        }
+        
+        // Rule 6: Regular retry (low score)
+        if action == "retry" && result.overallScore < 80 {
+            return HeaderInfo(text: "Thử lại nhé", subtitle: "Đọc chậm và rõ hơn câu này.", color: Color.BotTheme.scorePoor, showTargetWords: false)
+        }
+        
+        // Fallback
+        return HeaderInfo(
+            text: result.passed ? "Tốt!" : "Thử lại nhé",
+            subtitle: result.passed ? "Tiếp tục luyện tập câu này." : "Đọc chậm và rõ hơn câu này.",
+            color: result.passed ? Color.BotTheme.scoreAverage : Color.BotTheme.scorePoor,
+            showTargetWords: false
+        )
     }
     
     private func feedbackView(result: ScoringResult) -> some View {
-        VStack(spacing: Spacing.md) {
-            Text(headerText(for: result))
-                .font(Font.BotTheme.heading3)
-                .foregroundColor(headerColor(for: result))
+        let header = headerForOutcome(result: result, nextAction: viewModel.nextAction, consecutive: viewModel.consecutivePasses)
+        let failingTargetWords = result.wordScores.filter { ws in
+            let accuracyLow = ws.accuracy < 75
+            let phonemeLow = (ws.phonemeMatchRatio ?? 1.0) < 0.6
+            return accuracyLow || phonemeLow
+        }
+        
+        return VStack(spacing: Spacing.md) {
+            VStack(spacing: Spacing.xs) {
+                Text(header.text)
+                    .font(Font.BotTheme.heading3)
+                    .foregroundColor(header.color)
+                Text(header.subtitle)
+                    .font(Font.BotTheme.bodySecondary)
+                    .foregroundColor(Color.BotTheme.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
             
             Text("Score: \(result.overallScore)")
                 .font(Font.BotTheme.heading2)
                 .foregroundColor(Color.BotTheme.textPrimary)
+            
+            if header.showTargetWords && !failingTargetWords.isEmpty {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text("⚠️ Từ trọng tâm cần luyện:")
+                        .font(Font.BotTheme.bodySecondary)
+                        .foregroundColor(Color.BotTheme.textSecondary)
+                    FlowLayout(spacing: Spacing.sm) {
+                        ForEach(Array(failingTargetWords.enumerated()), id: \.offset) { _, ws in
+                            Text(ws.word)
+                                .font(Font.BotTheme.bodySecondary.weight(.semibold))
+                                .foregroundColor(Color.BotTheme.scorePoor)
+                                .padding(.horizontal, Spacing.sm)
+                                .padding(.vertical, Spacing.xs)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: Spacing.sm)
+                                        .stroke(Color.BotTheme.scorePoor, lineWidth: 1.5)
+                                )
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
             
             if result.fluencyScore != nil || result.linkingScore != nil || result.prosodyScore != nil {
                 VStack(spacing: Spacing.xs) {
