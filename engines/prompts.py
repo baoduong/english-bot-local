@@ -87,6 +87,9 @@ Return ONLY a valid JSON object matching this exact schema:
 Requirements:
 - "vocabulary": 5-15 relevant English words/phrases.
 - "milestones": 1-5 achievable goals for the phase.
+- "milestones[].description" and "milestones[].criteria" MUST be written in VIETNAMESE (Tiếng Việt) — this text is shown directly to Vietnamese learners in the app. Use natural, conversational Vietnamese.
+- "vietnamese_gloss" in vocabulary stays in Vietnamese as before.
+- All other fields (theme, vocabulary[].word, vocabulary[].ipa, vocabulary[].example_sentence) MUST stay in English.
 """
 
 def phase_content_prompt(phase_plan: dict, sentence_count: int = 12) -> str:

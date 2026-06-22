@@ -107,7 +107,7 @@ private struct SentencePracticeView: View {
     }
 
     private var practiceContentView: some View {
-        VStack(spacing: Spacing.xl) {
+        VStack(spacing: 0) {
             // Header
             HStack {
                 Button("Stop") {
@@ -122,60 +122,66 @@ private struct SentencePracticeView: View {
                 }
                 .foregroundColor(Color.BotTheme.textSecondary)
             }
-            
-            Spacer()
-            
-            // Content - tappable words
-            let words = viewModel.currentSentence.split(separator: " ").map(String.init)
-            FlowLayout(spacing: Spacing.sm) {
-                ForEach(Array(words.enumerated()), id: \.offset) { _, word in
-                    TappableWordView(word: word, viewModel: viewModel, audioPlayer: audioPlayer)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            
-            HStack(spacing: Spacing.md) {
-                Button(action: {
-                    if let u = viewModel.sampleAudioURL { audioPlayer.play(url: u) }
-                }) {
-                    HStack {
-                        Image(systemName: "speaker.wave.2.fill")
-                        Text("Nghe")
-                    }
-                    .padding()
-                    .background(Color.BotTheme.backgroundSecondary)
-                    .cornerRadius(Spacing.sm)
-                }
-                .foregroundColor(Color.BotTheme.primary)
+            .padding(.bottom, Spacing.md)
 
-                if let slowURL = viewModel.slowSampleAudioURL {
-                    Button(action: {
-                        audioPlayer.play(url: slowURL)
-                    }) {
-                        HStack {
-                            Image(systemName: "tortoise.fill")
-                            Text("Nghe chậm")
+            ScrollView {
+                VStack(spacing: Spacing.xl) {
+                    // Content - tappable words
+                    let words = viewModel.currentSentence.split(separator: " ").map(String.init)
+                    FlowLayout(spacing: Spacing.sm) {
+                        ForEach(Array(words.enumerated()), id: \.offset) { _, word in
+                            TappableWordView(word: word, viewModel: viewModel, audioPlayer: audioPlayer)
                         }
-                        .padding()
-                        .background(Color.BotTheme.backgroundSecondary)
-                        .cornerRadius(Spacing.sm)
                     }
-                    .foregroundColor(Color.BotTheme.primary)
+                    .frame(maxWidth: .infinity)
+
+                    HStack(spacing: Spacing.md) {
+                        Button(action: {
+                            if let u = viewModel.sampleAudioURL { audioPlayer.play(url: u) }
+                        }) {
+                            HStack {
+                                Image(systemName: "speaker.wave.2.fill")
+                                Text("Nghe")
+                            }
+                            .padding()
+                            .background(Color.BotTheme.backgroundSecondary)
+                            .cornerRadius(Spacing.sm)
+                        }
+                        .foregroundColor(Color.BotTheme.primary)
+
+                        if let slowURL = viewModel.slowSampleAudioURL {
+                            Button(action: {
+                                audioPlayer.play(url: slowURL)
+                            }) {
+                                HStack {
+                                    Image(systemName: "tortoise.fill")
+                                    Text("Nghe chậm")
+                                }
+                                .padding()
+                                .background(Color.BotTheme.backgroundSecondary)
+                                .cornerRadius(Spacing.sm)
+                            }
+                            .foregroundColor(Color.BotTheme.primary)
+                        }
+                    }
+
+                    // Feedback Area
+                    if viewModel.state == .uploading {
+                        LoadingIndicator()
+                    } else if viewModel.state == .scored, let result = viewModel.scoreResult {
+                        feedbackView(result: result)
+                    }
                 }
+                .padding(.vertical, Spacing.md)
             }
-            
-            // Feedback Area
-            if viewModel.state == .uploading {
-                LoadingIndicator()
-            } else if viewModel.state == .scored, let result = viewModel.scoreResult {
-                feedbackView(result: result)
-            } else {
-                Spacer().frame(height: 100) // Placeholder
-            }
-            
-            Spacer()
-            
-            // Record Button
+
+            actionButton
+                .padding(.top, Spacing.md)
+        }
+    }
+
+    private var actionButton: some View {
+        Group {
             if viewModel.state == .scored {
                 Button(action: {
                     Task { await viewModel.next() }
@@ -222,12 +228,31 @@ private struct SentencePracticeView: View {
                 }
             }
             
-            if !result.feedbackMessage.isEmpty {
-                Text(result.feedbackMessage)
-                    .font(Font.BotTheme.bodySecondary)
-                    .foregroundColor(Color.BotTheme.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, Spacing.xs)
+            let weakScores = result.wordScores.filter { $0.accuracy < 80 }
+            if !weakScores.isEmpty {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    ForEach(Array(weakScores.enumerated()), id: \.offset) { _, ws in
+                        HStack(spacing: Spacing.sm) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(Color.BotTheme.scoreAverage)
+                            Text(ws.word)
+                                .font(Font.BotTheme.bodyPrimary.weight(.semibold))
+                                .foregroundColor(Color.BotTheme.textPrimary)
+                            Text(":")
+                                .foregroundColor(Color.BotTheme.textSecondary)
+                            Text(result.engine.capitalized)
+                                .font(Font.BotTheme.bodySecondary)
+                                .foregroundColor(Color.BotTheme.textSecondary)
+                            Text("\(ws.accuracy)/100")
+                                .font(Font.BotTheme.bodyPrimary.weight(.semibold))
+                                .foregroundColor(Color.BotTheme.textPrimary)
+                            Spacer()
+                        }
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, Spacing.xs)
+                    }
+                }
+                .padding(.top, Spacing.xs)
             }
             
             // Tips for weak words
