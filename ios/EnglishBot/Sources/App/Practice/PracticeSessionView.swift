@@ -22,6 +22,9 @@ public struct PracticeSessionView: View {
         }
         .padding(Spacing.lg)
         .background(Color.BotTheme.backgroundMain.ignoresSafeArea())
+        .onChange(of: viewModel.currentSentence) { _ in
+            audioPlayer.clearCache()
+        }
         .onAppear {
             Task {
                 await viewModel.startSession()
@@ -57,13 +60,14 @@ private struct SentencePracticeView: View {
             
             Spacer()
             
-            // Content
+            // Content - tappable words
             let words = viewModel.currentSentence.split(separator: " ").map(String.init)
             FlowLayout(spacing: Spacing.sm) {
-                ForEach(Array(words.enumerated()), id: \.offset) { index, word in
+                ForEach(Array(words.enumerated()), id: \.offset) { _, word in
                     TappableWordView(word: word, viewModel: viewModel, audioPlayer: audioPlayer)
                 }
             }
+            .frame(maxWidth: .infinity)
             
             Button(action: {
                 if let u = viewModel.sampleAudioURL { audioPlayer.play(url: u) }
