@@ -12,7 +12,7 @@ public class APIClient: ObservableObject {
     public let baseURL: URL
     private let session: URLSession
     
-    public init(baseURL: URL = URL(string: "http://192.168.1.155:8000")!, session: URLSession = .shared) {
+    public init(baseURL: URL = URL(string: "http://localhost:8000")!, session: URLSession = .shared) {
         self.baseURL = baseURL
         self.session = session
     }

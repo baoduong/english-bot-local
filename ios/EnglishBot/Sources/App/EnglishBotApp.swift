@@ -27,8 +27,7 @@ public struct EnglishBotApp: View {
     public var body: some View {
         Group {
             if userId.isEmpty {
-                Color.BotTheme.backgroundMain
-                    .ignoresSafeArea()
+                ProgressView("Loading...")
                     .onAppear { userId = UUID().uuidString }
             } else if !onboardingDone {
                 onboardingFlow

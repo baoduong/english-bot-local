@@ -73,6 +73,16 @@ public struct OnboardingChatView: View {
             .padding(Spacing.md)
             .background(Color.BotTheme.backgroundMain)
         }
+        .overlay(alignment: .top) {
+            if let error = viewModel.errorMessage {
+                Text("Error: \(error)")
+                    .font(.caption)
+                    .foregroundColor(.white)
+                    .padding(8)
+                    .background(Color.red.cornerRadius(8))
+                    .padding(.top, 50)
+            }
+        }
         .background(Color.BotTheme.backgroundMain)
         .navigationTitle("Onboarding")
         #if os(iOS)

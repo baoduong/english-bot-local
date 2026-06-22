@@ -13,7 +13,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		0670C18DA85FAC6CD8510FD4 /* EnglishBotApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = EnglishBotApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0670C18DA85FAC6CD8510FD4 /* EnglishBot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EnglishBot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0D6B6E915490C28FF6411B2D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		7BC1FAB3E408A545EBEC66E5 /* EnglishBotMainApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnglishBotMainApp.swift; sourceTree = "<group>"; };
 		CA4632E076571112A09C8F44 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -35,7 +35,7 @@
 		57625A75BBEE4FEB952E5132 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				0670C18DA85FAC6CD8510FD4 /* EnglishBotApp.app */,
+				0670C18DA85FAC6CD8510FD4 /* EnglishBot.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -87,7 +87,7 @@
 				FB54A5A7013F6E4E8C36AC5C /* App */,
 			);
 			productName = EnglishBotApp;
-			productReference = 0670C18DA85FAC6CD8510FD4 /* EnglishBotApp.app */;
+			productReference = 0670C18DA85FAC6CD8510FD4 /* EnglishBot.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -97,10 +97,9 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 2650;
 				TargetAttributes = {
 					126BA69B505D193A8573F01A = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -219,9 +218,10 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 48T636CL5V;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -243,6 +243,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.englishbot.app;
 				PRODUCT_NAME = EnglishBot;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
@@ -284,9 +285,10 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 48T636CL5V;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -301,6 +303,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.englishbot.app;
 				PRODUCT_NAME = EnglishBot;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 6.0;

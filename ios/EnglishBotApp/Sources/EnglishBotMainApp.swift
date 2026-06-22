@@ -5,7 +5,9 @@ import App
 struct EnglishBotMainApp: SwiftUI.App {
     var body: some Scene {
         WindowGroup {
-            EnglishBotApp()
+            NavigationStack {
+                EnglishBotApp()
+            }
         }
     }
 }
