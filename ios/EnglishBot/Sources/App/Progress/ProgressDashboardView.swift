@@ -24,9 +24,11 @@ public struct ProgressDashboardView: View {
                             Text("Welcome back,")
                                 .font(Font.BotTheme.bodySecondary)
                                 .foregroundColor(Color.BotTheme.textSecondary)
-                            Text(progress.user.displayName ?? progress.user.username)
+                            Text(progress.user.displayName ?? shortUserName(progress.user.username))
                                 .font(Font.BotTheme.heading1)
                                 .foregroundColor(Color.BotTheme.textPrimary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
                         }
                         Spacer()
                         VStack(alignment: .trailing) {
@@ -36,6 +38,25 @@ public struct ProgressDashboardView: View {
                             Text("Level \(progress.user.currentLevel)")
                                 .font(Font.BotTheme.caption)
                                 .foregroundColor(Color.BotTheme.textSecondary)
+                        }
+                        
+                        // Reset Goal menu
+                        if viewModel.isResettingGoal {
+                            ProgressView()
+                                .padding(.leading, Spacing.sm)
+                        } else {
+                            Menu {
+                                Button(role: .destructive, action: {
+                                    showResetConfirm = true
+                                }) {
+                                    Label("Đổi mục tiêu", systemImage: "arrow.triangle.2.circlepath")
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis.circle.fill")
+                                    .font(.title)
+                                    .foregroundColor(Color.BotTheme.primary)
+                            }
+                            .padding(.leading, Spacing.sm)
                         }
                     }
                     
@@ -106,45 +127,6 @@ public struct ProgressDashboardView: View {
         .onAppear {
             Task { await viewModel.fetchProgress() }
         }
-        .toolbar {
-            #if os(iOS)
-            ToolbarItem(placement: .navigationBarTrailing) {
-                if viewModel.isResettingGoal {
-                    ProgressView()
-                } else {
-                    Menu {
-                        Button(role: .destructive, action: {
-                            showResetConfirm = true
-                        }) {
-                            Label("Đổi mục tiêu", systemImage: "arrow.triangle.2.circlepath")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .font(.title2)
-                            .foregroundColor(Color.BotTheme.primary)
-                    }
-                }
-            }
-            #else
-            ToolbarItem(placement: .primaryAction) {
-                if viewModel.isResettingGoal {
-                    ProgressView()
-                } else {
-                    Menu {
-                        Button(role: .destructive, action: {
-                            showResetConfirm = true
-                        }) {
-                            Label("Đổi mục tiêu", systemImage: "arrow.triangle.2.circlepath")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .font(.title2)
-                            .foregroundColor(Color.BotTheme.primary)
-                    }
-                }
-            }
-            #endif
-        }
         .alert("Đổi mục tiêu học tập?", isPresented: $showResetConfirm) {
             Button("Huỷ", role: .cancel) {}
             Button("Đồng ý đổi", role: .destructive) {
@@ -168,5 +150,13 @@ public struct ProgressDashboardView: View {
                 Text(error)
             }
         }
+    }
+    
+    private func shortUserName(_ raw: String) -> String {
+        // If it looks like a UUID, show "User <first6>"
+        if raw.count > 20, raw.contains("-") {
+            return "User \(raw.prefix(6))"
+        }
+        return raw
     }
 }
