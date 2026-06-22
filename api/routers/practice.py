@@ -22,6 +22,7 @@ from analysis.errors import (
 )
 from analysis.phonemes import clean_word, phoneme_similarity
 from engines.phoneme_alignment import analyze_phonemes_per_word
+from engines.prosody_analyzer import get_prosody_analyzer
 from api.models import (
     DrillInfo,
     NextActionHint,
@@ -43,6 +44,7 @@ from api.models import (
 from db.curriculum import (
     get_active_curriculum,
     get_active_phase,
+    get_consecutive_passes,
     get_curriculum,
     get_next_practice_sentence,
     get_phase,
@@ -169,6 +171,7 @@ def _build_state_response_sync(user_id: str, session: dict[str, Any]) -> Practic
         and progress.total > 0
         and progress.mastered >= progress.total
     )
+    consecutive_passes = get_consecutive_passes(int(session.get("content_id") or 0)) if session.get("content_id") else 0
 
     return PracticeSessionStateResponse(
         session=PracticeSessionState(
@@ -179,6 +182,7 @@ def _build_state_response_sync(user_id: str, session: dict[str, Any]) -> Practic
             drill_index=session.get("drill_index"),
             drill_words=list(session.get("drill_words") or []) or None,
             started_at=_parse_started_at(session.get("started_at")),
+            consecutive_passes=consecutive_passes,
         ),
         curriculum=PracticeSessionCurriculumContext(
             curriculum_id=curriculum["id"],
@@ -194,6 +198,7 @@ def _build_state_response_sync(user_id: str, session: dict[str, Any]) -> Practic
         ),
         drill=drill,
         phase_complete=phase_complete,
+        consecutive_passes=consecutive_passes,
     )
 
 
@@ -522,6 +527,12 @@ async def score_practice_audio(
         except Exception as exc:
             print(f"⚠️ Phoneme recognition failed: {exc}")
             per_word_phonemes = {}
+        prosody: dict[str, Any] = {}
+        try:
+            word_count = len([word for word in expected.split() if word])
+            prosody = await asyncio.to_thread(get_prosody_analyzer().analyze, str(wav_path), word_count)
+        except Exception as exc:
+            print(f"⚠️ Prosody analysis failed: {exc}")
         overall_score, _ansi_feedback, feedback_message, problem_words, error_types, _word_scores = analysis
         word_scores, weak_words, error_labels, score_map = await asyncio.to_thread(
             _build_word_scores,
@@ -531,16 +542,44 @@ async def score_practice_audio(
         )
 
         await asyncio.to_thread(_record_practice_metrics_sync, user_id, expected, int(overall_score), score_map, error_types)
-        await asyncio.to_thread(record_phase_content_attempt, int(session["content_id"]), int(overall_score))
+
+        target_words = current_content.get("target_words", []) or []
+        target_words_passed = True
+        if target_words:
+            word_score_map = {ws.word.lower().strip(".,!?"): ws for ws in word_scores}
+            for target in target_words:
+                for sub_word in target.split():
+                    ws = word_score_map.get(sub_word.lower().strip(".,!?"))
+                    if ws is None or ws.accuracy < 75:
+                        target_words_passed = False
+                        break
+                    if ws.phoneme_match_ratio is not None and ws.phoneme_match_ratio < 0.6:
+                        target_words_passed = False
+                        break
+                if not target_words_passed:
+                    break
+
+        new_consec = await asyncio.to_thread(
+            record_phase_content_attempt,
+            int(session["content_id"]),
+            int(overall_score),
+            target_words_passed,
+        )
 
         session.setdefault("scores", []).append(int(overall_score))
-        if overall_score >= 80:
+        if overall_score >= 80 and target_words_passed and new_consec >= 2:
             session.setdefault("session_stats", {}).setdefault("passed_first_try", 0)
             if int(session.get("fail_count") or 0) == 0:
                 session["session_stats"]["passed_first_try"] += 1
             session["fail_count"] = 0
             await asyncio.to_thread(_advance_to_next_content_sync, session)
-            next_action = NextActionHint(action="pass", message="Passed. Continue to the next sentence.")
+            next_action = NextActionHint(action="pass", message="Mastered! Continue to the next sentence.")
+        elif overall_score >= 80 and target_words_passed:
+            session["fail_count"] = 0
+            next_action = NextActionHint(
+                action="retry",
+                message=f"Tốt! Đọc lại 1 lần nữa để hoàn thành (đang ở {new_consec}/2 lần liên tiếp).",
+            )
         else:
             session["fail_count"] = int(session.get("fail_count") or 0) + 1
             if session["fail_count"] >= 4:
@@ -586,6 +625,10 @@ async def score_practice_audio(
                 feedback_message=feedback_message,
                 word_scores=word_scores,
                 sample_audio=_build_sample_audio(user_id, sentence=expected),
+                fluency_score=prosody.get("fluency_score"),
+                linking_score=prosody.get("linking_score"),
+                prosody_score=prosody.get("prosody_score"),
+                pace_wpm=prosody.get("pace_wpm"),
             ),
             next_action=next_action,
             session=PracticeSessionState(
@@ -596,8 +639,10 @@ async def score_practice_audio(
                 drill_index=session.get("drill_index"),
                 drill_words=list(session.get("drill_words") or []) or None,
                 started_at=_parse_started_at(session.get("started_at")),
+                consecutive_passes=new_consec,
             ),
             current_item=current_item_model,
+            consecutive_passes=new_consec,
         )
     finally:
         with suppress(Exception):

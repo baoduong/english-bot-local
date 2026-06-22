@@ -83,6 +83,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         print(f"⚠️  wav2vec2-phoneme load failed: {exc}")
 
+    try:
+        from engines.prosody_analyzer import get_prosody_analyzer
+
+        await asyncio.to_thread(get_prosody_analyzer().load)
+        print("🟩 Prosody analyzer (librosa) ready")
+    except Exception as exc:
+        print(f"⚠️  Prosody analyzer load failed: {exc}")
+
     yield  # ── application runs ──────────────────────────────────────────────
 
     # Shutdown cleanup

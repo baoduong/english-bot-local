@@ -262,6 +262,7 @@ class PracticeSessionState(BaseModel):
     drill_index: Optional[int] = None
     drill_words: Optional[list[str]] = None
     started_at: Optional[datetime] = None
+    consecutive_passes: int = 0
 
 
 class PracticeSessionCurriculumContext(BaseModel):
@@ -284,6 +285,7 @@ class PracticeSessionStateResponse(BaseModel):
     sample_audio: Optional[SampleAudio] = None
     drill: Optional[DrillInfo] = None
     phase_complete: bool = False
+    consecutive_passes: int = 0
 
 
 class PracticeSessionStartRequest(BaseModel):
@@ -329,6 +331,10 @@ class ScoringResult(BaseModel):
     feedback_message: str
     word_scores: list[WordScore] = Field(default_factory=list)
     sample_audio: Optional[SampleAudio] = None
+    fluency_score: Optional[int] = None
+    linking_score: Optional[int] = None
+    prosody_score: Optional[int] = None
+    pace_wpm: Optional[float] = None
 
 
 class NextActionHint(BaseModel):
@@ -342,6 +348,7 @@ class PracticeAudioResponse(BaseModel):
     next_action: NextActionHint
     session: PracticeSessionState
     current_item: PracticeContentItem
+    consecutive_passes: int = 0
 
 
 # ─── Progress ─────────────────────────────────────────────────────────────────

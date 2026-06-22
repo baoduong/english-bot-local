@@ -176,9 +176,15 @@ def init_db():
             difficulty_score INTEGER,
             attempt_count INTEGER DEFAULT 0,
             last_score REAL,
+            consecutive_passes INTEGER NOT NULL DEFAULT 0,
             mastered_at DATETIME
         )
     ''')
+
+    try:
+        cursor.execute("ALTER TABLE phase_content ADD COLUMN consecutive_passes INTEGER NOT NULL DEFAULT 0")
+    except Exception:
+        pass
 
     # 14. Bảng Onboarding Conversations — lưu lịch sử hội thoại onboarding
     cursor.execute('''

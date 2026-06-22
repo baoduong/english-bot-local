@@ -313,31 +313,65 @@ def get_next_practice_sentence(phase_id, exclude_content_id=None) -> dict | None
     return _parse_content_row(row) if row else None
 
 
-def record_phase_content_attempt(content_id, score) -> None:
-    """Increment attempt_count, set last_score.
-    If score >= 80 AND mastered_at IS NULL, set mastered_at=now.
-    """
+def record_phase_content_attempt(content_id, score, target_words_passed: bool = True) -> int:
     conn = get_db_connection()
     cursor = conn.cursor()
-    if score >= 80:
+    cursor.execute(
+        "SELECT consecutive_passes, mastered_at FROM phase_content WHERE id = ?",
+        (content_id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return 0
+
+    current_consecutive = int(row["consecutive_passes"] or 0)
+    already_mastered = row["mastered_at"] is not None
+    high_quality = score >= 80 and target_words_passed
+
+    if high_quality:
+        new_consecutive = current_consecutive + 1
+        if new_consecutive >= 2 and not already_mastered:
+            cursor.execute(
+                """UPDATE phase_content
+                   SET attempt_count = attempt_count + 1,
+                       last_score = ?,
+                       consecutive_passes = ?,
+                       mastered_at = datetime('now')
+                   WHERE id = ?""",
+                (int(score), new_consecutive, content_id)
+            )
+        else:
+            cursor.execute(
+                """UPDATE phase_content
+                   SET attempt_count = attempt_count + 1,
+                       last_score = ?,
+                       consecutive_passes = ?
+                   WHERE id = ?""",
+                (int(score), new_consecutive, content_id)
+            )
+    else:
+        new_consecutive = 0
         cursor.execute(
             """UPDATE phase_content
                SET attempt_count = attempt_count + 1,
                    last_score = ?,
-                   mastered_at = CASE WHEN mastered_at IS NULL THEN datetime('now') ELSE mastered_at END
+                   consecutive_passes = ?
                WHERE id = ?""",
-            (score, content_id)
-        )
-    else:
-        cursor.execute(
-            """UPDATE phase_content
-               SET attempt_count = attempt_count + 1,
-                   last_score = ?
-               WHERE id = ?""",
-            (score, content_id)
+            (int(score), new_consecutive, content_id)
         )
     conn.commit()
     conn.close()
+    return new_consecutive
+
+
+def get_consecutive_passes(content_id) -> int:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT consecutive_passes FROM phase_content WHERE id = ?", (content_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return int(row["consecutive_passes"] or 0) if row else 0
 
 
 def get_phase_progress(phase_id) -> dict:
