@@ -263,11 +263,7 @@ private struct SentencePracticeView: View {
     
     private func feedbackView(result: ScoringResult) -> some View {
         let header = headerForOutcome(result: result, nextAction: viewModel.nextAction, consecutive: viewModel.consecutivePasses)
-        let failingTargetWords = result.wordScores.filter { ws in
-            let accuracyLow = ws.accuracy < 75
-            let phonemeLow = (ws.phonemeMatchRatio ?? 1.0) < 0.6
-            return accuracyLow || phonemeLow
-        }
+        let failingTargetWords = result.wordScores.filter { $0.accuracy < 75 }
         
         return VStack(spacing: Spacing.md) {
             VStack(spacing: Spacing.xs) {

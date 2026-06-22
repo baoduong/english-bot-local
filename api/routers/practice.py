@@ -481,7 +481,9 @@ def _maybe_generate_coaching_sync(
     target_words_passed: bool,
     word_scores: list[WordScore],
 ) -> CoachingHint | None:
+    print(f"[coaching] check: score={overall_score} target_passed={target_words_passed} mode={session.get('mode')}")
     if overall_score >= 80 or target_words_passed:
+        print(f"[coaching] skip: passed quality bar")
         return None
 
     sentence_context = current_content.get("sentence")
@@ -489,6 +491,7 @@ def _maybe_generate_coaching_sync(
     if drill_word:
         attempt_count = int((session.get("drill_attempts") or {}).get(drill_word, 0))
         if attempt_count < 2:
+            print(f"[coaching] skip: drill_word={drill_word} attempt_count={attempt_count} < 2")
             return None
         target_score = next((ws for ws in word_scores if clean_word(ws.word) == clean_word(drill_word)), None)
         target_ipa = target_score.target_ipa if target_score else get_target_ipa(drill_word)
@@ -499,7 +502,8 @@ def _maybe_generate_coaching_sync(
         prompt_word = drill_word
     else:
         attempt_count = int(session.get("fail_count") or 0)
-        if attempt_count < 3:
+        if attempt_count < 2:
+            print(f"[coaching] skip: sentence fail_count={attempt_count} < 2")
             return None
         target_words = list(current_content.get("target_words") or [])
         prompt_word = target_words[0] if target_words else current_content.get("sentence") or "sentence"
@@ -536,6 +540,7 @@ def _maybe_generate_coaching_sync(
     coaching_payload["difficulty"] = difficulty
     coaching_payload["attempt_count"] = attempt_count
     coaching_payload["max_attempts"] = max_attempts
+    print(f"[coaching] FIRED: action={coaching_payload.get('action')} word={prompt_word}")
     return CoachingHint(**coaching_payload)
 
 
@@ -687,6 +692,7 @@ async def score_practice_audio(
 
         target_words = current_content.get("target_words", []) or []
         target_words_passed = True
+        is_drill_mode = session.get("mode") == "word_drill"
         if target_words:
             word_score_map = {ws.word.lower().strip(".,!?"): ws for ws in word_scores}
             for target in target_words:
@@ -695,7 +701,7 @@ async def score_practice_audio(
                     if ws is None or ws.accuracy < 75:
                         target_words_passed = False
                         break
-                    if ws.phoneme_match_ratio is not None and ws.phoneme_match_ratio < 0.6:
+                    if is_drill_mode and ws.phoneme_match_ratio is not None and ws.phoneme_match_ratio < 0.6:
                         target_words_passed = False
                         break
                 if not target_words_passed:
