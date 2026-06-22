@@ -408,6 +408,17 @@ private struct SentencePracticeView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            
+            if let coaching = viewModel.coachingHint {
+                CoachingHintView(
+                    hint: coaching,
+                    audioPlayer: audioPlayer,
+                    wordAudioURL: viewModel.wordAudioURL,
+                    onSkipRequested: { Task { await viewModel.skip() } },
+                    onContinueRequested: { viewModel.coachingHint = nil }
+                )
+                .padding(.top, Spacing.sm)
+            }
         }
         .padding()
         .background(Color.BotTheme.backgroundSecondary)

@@ -308,9 +308,50 @@ public struct NextActionHint: Codable {
     }
 }
 
+public struct CoachingHint: Codable {
+    public let action: String  // "continue" | "scaffold" | "break_down" | "skip_with_note"
+    public let messageVi: String
+    public let scaffoldWord: String?
+    public let scaffoldReasonVi: String?
+    public let syllables: [String]
+    public let articulatoryTipVi: String?
+    public let skipReasonVi: String?
+    public let difficulty: Int
+    public let attemptCount: Int
+    public let maxAttempts: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case action
+        case messageVi = "message_vi"
+        case scaffoldWord = "scaffold_word"
+        case scaffoldReasonVi = "scaffold_reason_vi"
+        case syllables
+        case articulatoryTipVi = "articulatory_tip_vi"
+        case skipReasonVi = "skip_reason_vi"
+        case difficulty
+        case attemptCount = "attempt_count"
+        case maxAttempts = "max_attempts"
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        action = try c.decode(String.self, forKey: .action)
+        messageVi = try c.decode(String.self, forKey: .messageVi)
+        scaffoldWord = try c.decodeIfPresent(String.self, forKey: .scaffoldWord)
+        scaffoldReasonVi = try c.decodeIfPresent(String.self, forKey: .scaffoldReasonVi)
+        syllables = try c.decodeIfPresent([String].self, forKey: .syllables) ?? []
+        articulatoryTipVi = try c.decodeIfPresent(String.self, forKey: .articulatoryTipVi)
+        skipReasonVi = try c.decodeIfPresent(String.self, forKey: .skipReasonVi)
+        difficulty = try c.decodeIfPresent(Int.self, forKey: .difficulty) ?? 5
+        attemptCount = try c.decodeIfPresent(Int.self, forKey: .attemptCount) ?? 0
+        maxAttempts = try c.decodeIfPresent(Int.self, forKey: .maxAttempts) ?? 3
+    }
+}
+
 public struct PracticeAudioResponse: Codable {
     public let scoring: ScoringResult
     public let nextAction: NextActionHint
+    public let coaching: CoachingHint?
     public let session: PracticeSessionState
     public let currentItem: PracticeContentItem
     public let consecutivePasses: Int
@@ -319,6 +360,7 @@ public struct PracticeAudioResponse: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         scoring = try container.decode(ScoringResult.self, forKey: .scoring)
         nextAction = try container.decode(NextActionHint.self, forKey: .nextAction)
+        coaching = try container.decodeIfPresent(CoachingHint.self, forKey: .coaching)
         session = try container.decode(PracticeSessionState.self, forKey: .session)
         currentItem = try container.decode(PracticeContentItem.self, forKey: .currentItem)
         consecutivePasses = try container.decodeIfPresent(Int.self, forKey: .consecutivePasses) ?? 0
@@ -327,6 +369,7 @@ public struct PracticeAudioResponse: Codable {
     enum CodingKeys: String, CodingKey {
         case scoring
         case nextAction = "next_action"
+        case coaching
         case session
         case currentItem = "current_item"
         case consecutivePasses = "consecutive_passes"

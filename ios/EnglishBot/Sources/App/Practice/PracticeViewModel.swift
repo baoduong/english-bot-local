@@ -14,6 +14,7 @@ public class PracticeViewModel: ObservableObject {
     @Published public var currentSentence: String = ""
     @Published public var scoreResult: ScoringResult?
     @Published public var nextAction: NextActionHint?
+    @Published public var coachingHint: CoachingHint?
     @Published public var errorMessage: String?
     @Published public var phaseComplete: Bool = false
     @Published public var isAdvancingPhase: Bool = false
@@ -51,6 +52,7 @@ public class PracticeViewModel: ObservableObject {
     }
 
     private func applyState(_ response: PracticeSessionStateResponse) {
+        coachingHint = nil
         phaseComplete = response.phaseComplete
         phaseProgress = response.progress
         consecutivePasses = response.consecutivePasses
@@ -76,6 +78,7 @@ public class PracticeViewModel: ObservableObject {
             applyState(response)
             scoreResult = nil
             nextAction = nil
+            coachingHint = nil
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -98,6 +101,7 @@ public class PracticeViewModel: ObservableObject {
             )
             scoreResult = response.scoring
             nextAction = response.nextAction
+            coachingHint = response.coaching
             consecutivePasses = response.consecutivePasses
             currentContentId = response.currentItem.contentId
             state = .scored
@@ -115,6 +119,7 @@ public class PracticeViewModel: ObservableObject {
             state = .idle
             scoreResult = nil
             nextAction = nil
+            coachingHint = nil
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -130,6 +135,7 @@ public class PracticeViewModel: ObservableObject {
         state = .idle
         scoreResult = nil
         nextAction = nil
+        coachingHint = nil
     }
 
     public func advancePhase() async {
@@ -148,6 +154,7 @@ public class PracticeViewModel: ObservableObject {
         errorMessage = nil
         scoreResult = nil
         nextAction = nil
+        coachingHint = nil
         state = .idle
         do {
             let response = try await apiClient.getPracticeState(userId: userId)

@@ -73,6 +73,16 @@ public struct WordDrillView: View {
                 .padding()
                 .background(Color.BotTheme.backgroundSecondary)
                 .cornerRadius(Spacing.md)
+                
+                if let coaching = viewModel.coachingHint {
+                    CoachingHintView(
+                        hint: coaching,
+                        audioPlayer: audioPlayer,
+                        wordAudioURL: viewModel.wordAudioURL,
+                        onSkipRequested: { Task { await viewModel.skip() } },
+                        onContinueRequested: { viewModel.coachingHint = nil }
+                    )
+                }
             } else {
                 Spacer().frame(height: 100) // Placeholder
             }
