@@ -21,6 +21,7 @@ from analysis.errors import (
     get_target_ipa,
 )
 from analysis.phonemes import clean_word, phoneme_similarity
+from engines.phoneme_alignment import analyze_phonemes_per_word
 from api.models import (
     DrillInfo,
     NextActionHint,
@@ -306,9 +307,14 @@ def _score_color_from_confidence(
     return "red", phon_sim, 10
 
 
-def _build_word_scores(expected_text: str, analysis: tuple[Any, ...]) -> tuple[list[WordScore], list[str], list[str], dict[str, Any]]:
+def _build_word_scores(
+    expected_text: str,
+    analysis: tuple[Any, ...],
+    per_word_phonemes: dict[str, dict[str, Any]] | None = None,
+) -> tuple[list[WordScore], list[str], list[str], dict[str, Any]]:
     _, _, _, _, error_types, raw_word_scores = analysis
     score_map: dict[str, Any] = raw_word_scores or {}
+    per_word_phonemes = per_word_phonemes or {}
     words: list[WordScore] = []
     weak_words: list[str] = []
     labels: list[str] = []
@@ -316,6 +322,7 @@ def _build_word_scores(expected_text: str, analysis: tuple[Any, ...]) -> tuple[l
         clean = clean_word(token)
         raw = score_map.get(clean)
         if not raw:
+            phoneme_data = per_word_phonemes.get(clean, {})
             err_type = "omission"
             words.append(
                 WordScore(
@@ -328,6 +335,9 @@ def _build_word_scores(expected_text: str, analysis: tuple[Any, ...]) -> tuple[l
                     error_label=ERROR_TYPE_LABELS.get(err_type, ERROR_TYPE_LABELS["general"]),
                     target_ipa=get_target_ipa(token),
                     practice_examples=get_error_examples(err_type),
+                    detected_ipa=phoneme_data.get("detected_ipa"),
+                    phoneme_match_ratio=phoneme_data.get("phoneme_match_ratio"),
+                    missing_phonemes=phoneme_data.get("missing_phonemes", []),
                 )
             )
             weak_words.append(clean)
@@ -352,6 +362,7 @@ def _build_word_scores(expected_text: str, analysis: tuple[Any, ...]) -> tuple[l
             labels.append(error_label)
             tip = get_articulatory_tip(err_type)
             weak_words.append(clean)
+        phoneme_data = per_word_phonemes.get(clean, {})
         words.append(
             WordScore(
                 word=token,
@@ -363,6 +374,9 @@ def _build_word_scores(expected_text: str, analysis: tuple[Any, ...]) -> tuple[l
                 error_label=error_label,
                 target_ipa=target_ipa,
                 practice_examples=practice_examples,
+                detected_ipa=phoneme_data.get("detected_ipa"),
+                phoneme_match_ratio=phoneme_data.get("phoneme_match_ratio"),
+                missing_phonemes=phoneme_data.get("missing_phonemes", []),
             )
         )
     return words, sorted(set(weak_words)), sorted(set(labels)), score_map
@@ -503,8 +517,18 @@ async def score_practice_audio(
         await asyncio.to_thread(_transcode_to_wav_sync, str(source_path), str(wav_path))
 
         analysis = await asyncio.to_thread(analyze_audio_with_whisper, str(wav_path), expected)
+        try:
+            per_word_phonemes = await asyncio.to_thread(analyze_phonemes_per_word, str(wav_path), expected)
+        except Exception as exc:
+            print(f"⚠️ Phoneme recognition failed: {exc}")
+            per_word_phonemes = {}
         overall_score, _ansi_feedback, feedback_message, problem_words, error_types, _word_scores = analysis
-        word_scores, weak_words, error_labels, score_map = await asyncio.to_thread(_build_word_scores, expected, analysis)
+        word_scores, weak_words, error_labels, score_map = await asyncio.to_thread(
+            _build_word_scores,
+            expected,
+            analysis,
+            per_word_phonemes,
+        )
 
         await asyncio.to_thread(_record_practice_metrics_sync, user_id, expected, int(overall_score), score_map, error_types)
         await asyncio.to_thread(record_phase_content_attempt, int(session["content_id"]), int(overall_score))

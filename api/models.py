@@ -41,6 +41,9 @@ class WordScore(BaseModel):
     error_label: Optional[str] = None
     target_ipa: Optional[str] = None
     practice_examples: list[str] = Field(default_factory=list)
+    detected_ipa: Optional[str] = None
+    phoneme_match_ratio: Optional[float] = None
+    missing_phonemes: list[str] = Field(default_factory=list)
 
 
 class SampleAudio(BaseModel):

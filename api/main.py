@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import time
+import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -65,7 +66,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # 3. Eager-load Whisper model (3–8 s cold start — do it here so the first
     #    /practice/audio request is not penalised)
     try:
-        import asyncio
         import whisper as _whisper  # openai-whisper package
 
         await asyncio.to_thread(_whisper.load_model, "small")
@@ -73,6 +73,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("[startup] Whisper 'small' model loaded.")
     except Exception as exc:
         logger.warning("[startup] Whisper load skipped (will cold-start on first use): %s", exc)
+
+    try:
+        from engines.phoneme_recognizer import get_phoneme_recognizer
+
+        recognizer = get_phoneme_recognizer()
+        await asyncio.to_thread(recognizer.load)
+        print("🟩 wav2vec2-phoneme model loaded")
+    except Exception as exc:
+        print(f"⚠️  wav2vec2-phoneme load failed: {exc}")
 
     yield  # ── application runs ──────────────────────────────────────────────
 
