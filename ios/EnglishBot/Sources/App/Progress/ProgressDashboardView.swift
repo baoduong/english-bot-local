@@ -107,6 +107,25 @@ public struct ProgressDashboardView: View {
             Task { await viewModel.fetchProgress() }
         }
         .toolbar {
+            #if os(iOS)
+            ToolbarItem(placement: .navigationBarTrailing) {
+                if viewModel.isResettingGoal {
+                    ProgressView()
+                } else {
+                    Menu {
+                        Button(role: .destructive, action: {
+                            showResetConfirm = true
+                        }) {
+                            Label("Đổi mục tiêu", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.title2)
+                            .foregroundColor(Color.BotTheme.primary)
+                    }
+                }
+            }
+            #else
             ToolbarItem(placement: .primaryAction) {
                 if viewModel.isResettingGoal {
                     ProgressView()
@@ -119,9 +138,12 @@ public struct ProgressDashboardView: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
+                            .font(.title2)
+                            .foregroundColor(Color.BotTheme.primary)
                     }
                 }
             }
+            #endif
         }
         .alert("Đổi mục tiêu học tập?", isPresented: $showResetConfirm) {
             Button("Huỷ", role: .cancel) {}
