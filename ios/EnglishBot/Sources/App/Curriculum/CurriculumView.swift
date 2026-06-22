@@ -38,6 +38,20 @@ public struct CurriculumView: View {
                     }
                     .padding(.horizontal, Spacing.md)
                     
+                    // Milestones — what user will achieve after completing this phase
+                    if let milestones = phase.milestones, !milestones.isEmpty {
+                        VStack(alignment: .leading, spacing: Spacing.md) {
+                            Text("🎯 Sau khi hoàn thành phase này, bạn sẽ:")
+                                .font(Font.BotTheme.heading3)
+                                .foregroundColor(Color.BotTheme.textPrimary)
+                            
+                            ForEach(milestones) { milestone in
+                                MilestoneCard(milestone: milestone)
+                            }
+                        }
+                        .padding(.horizontal, Spacing.md)
+                    }
+                    
                     // Content Items
                     if let detail = viewModel.phaseDetail {
                         VStack(alignment: .leading, spacing: Spacing.md) {
@@ -112,5 +126,34 @@ struct SentenceRow: View {
         .background(Color.BotTheme.backgroundSecondary)
         .cornerRadius(Spacing.md)
         .padding(.horizontal, Spacing.md)
+    }
+}
+
+struct MilestoneCard: View {
+    let milestone: Milestone
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: Spacing.md) {
+            Image(systemName: "checkmark.seal.fill")
+                .foregroundColor(Color.BotTheme.primary)
+                .font(.title3)
+            
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text(milestone.description)
+                    .font(Font.BotTheme.bodyPrimary.weight(.semibold))
+                    .foregroundColor(Color.BotTheme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                
+                Text(milestone.criteria)
+                    .font(Font.BotTheme.bodySecondary)
+                    .foregroundColor(Color.BotTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            
+            Spacer(minLength: 0)
+        }
+        .padding(Spacing.md)
+        .background(Color.BotTheme.backgroundSecondary)
+        .cornerRadius(Spacing.md)
     }
 }

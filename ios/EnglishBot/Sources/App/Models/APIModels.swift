@@ -152,11 +152,18 @@ public struct CurriculumSummary: Codable, Identifiable {
     }
 }
 
+public struct Milestone: Codable, Identifiable {
+    public let description: String
+    public let criteria: String
+    public var id: String { description }
+}
+
 public struct CurriculumPhase: Codable, Identifiable {
     public let phaseId: Int
     public let phaseNumber: Int
     public let theme: String
     public let status: String
+    public let milestones: [Milestone]?
     
     public var id: Int { phaseId }
     
@@ -165,6 +172,16 @@ public struct CurriculumPhase: Codable, Identifiable {
         case phaseNumber = "phase_number"
         case theme
         case status
+        case milestones
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        phaseId = try c.decode(Int.self, forKey: .phaseId)
+        phaseNumber = try c.decode(Int.self, forKey: .phaseNumber)
+        theme = try c.decode(String.self, forKey: .theme)
+        status = try c.decode(String.self, forKey: .status)
+        milestones = try c.decodeIfPresent([Milestone].self, forKey: .milestones)
     }
 }
 
