@@ -25,10 +25,7 @@ public struct WordDrillView: View {
             Spacer()
             
             // Content
-            Text(viewModel.drillWord)
-                .font(Font.BotTheme.heading1)
-                .foregroundColor(Color.BotTheme.textPrimary)
-                .multilineTextAlignment(.center)
+            TappableWordView(word: viewModel.drillWord, viewModel: viewModel, audioPlayer: audioPlayer)
             
             Button(action: {
                 if let u = viewModel.sampleAudioURL { audioPlayer.play(url: u) }

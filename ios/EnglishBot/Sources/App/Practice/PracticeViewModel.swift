@@ -37,6 +37,10 @@ public class PracticeViewModel: ObservableObject {
         return apiClient.sampleAudioURL(userId: userId, expectedText: currentSentence)
     }
 
+    public func wordAudioURL(for word: String) -> URL? {
+        return apiClient.sampleAudioURL(userId: userId, word: word)
+    }
+
     private func applyState(_ response: PracticeSessionStateResponse) {
         currentContentId = response.currentItem?.contentId
         if let drill = response.drill {

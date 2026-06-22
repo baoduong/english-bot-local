@@ -58,10 +58,12 @@ private struct SentencePracticeView: View {
             Spacer()
             
             // Content
-            Text(viewModel.currentSentence)
-                .font(Font.BotTheme.heading1)
-                .foregroundColor(Color.BotTheme.textPrimary)
-                .multilineTextAlignment(.center)
+            let words = viewModel.currentSentence.split(separator: " ").map(String.init)
+            FlowLayout(spacing: Spacing.sm) {
+                ForEach(Array(words.enumerated()), id: \.offset) { index, word in
+                    TappableWordView(word: word, viewModel: viewModel, audioPlayer: audioPlayer)
+                }
+            }
             
             Button(action: {
                 if let u = viewModel.sampleAudioURL { audioPlayer.play(url: u) }
@@ -147,3 +149,33 @@ private struct SentencePracticeView: View {
         .cornerRadius(Spacing.md)
     }
 }
+
+public struct TappableWordView: View {
+    let word: String
+    @ObservedObject var viewModel: PracticeViewModel
+    @ObservedObject var audioPlayer: AudioPlayer
+    
+    @State private var isTapped = false
+    
+    public var body: some View {
+        Text(word)
+            .font(Font.BotTheme.heading1)
+            .foregroundColor(isTapped ? Color.BotTheme.primary : Color.BotTheme.textPrimary)
+            .scaleEffect(isTapped ? 1.1 : 1.0)
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isTapped = true
+                }
+                if let url = viewModel.wordAudioURL(for: word) {
+                    audioPlayer.play(url: url)
+                }
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        isTapped = false
+                    }
+                }
+            }
+    }
+}
+
