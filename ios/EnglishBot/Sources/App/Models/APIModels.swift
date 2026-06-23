@@ -23,16 +23,30 @@ public struct UserProfile: Codable, Identifiable {
 }
 
 public struct OnboardingMessage: Codable, Identifiable {
+    public let id: UUID
     public let turnNumber: Int
     public let role: String
     public let content: String
-    
-    public var id: Int { turnNumber }
     
     enum CodingKeys: String, CodingKey {
         case turnNumber = "turn_number"
         case role
         case content
+    }
+
+    public init(id: UUID = UUID(), turnNumber: Int, role: String, content: String) {
+        self.id = id
+        self.turnNumber = turnNumber
+        self.role = role
+        self.content = content
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = UUID()
+        turnNumber = try container.decode(Int.self, forKey: .turnNumber)
+        role = try container.decode(String.self, forKey: .role)
+        content = try container.decode(String.self, forKey: .content)
     }
 }
 

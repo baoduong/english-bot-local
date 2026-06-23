@@ -75,7 +75,15 @@ public struct CurriculumView: View {
         .background(Color.BotTheme.backgroundMain)
         .navigationTitle("Curriculum")
         .task {
-            await viewModel.fetchCurrentCurriculum()
+            await viewModel.load()
+        }
+        .refreshable {
+            await viewModel.load()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .phaseAdvanced)) { _ in
+            Task {
+                await viewModel.load()
+            }
         }
     }
 }

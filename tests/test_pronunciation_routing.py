@@ -116,8 +116,9 @@ def test_uses_whisper_when_azure_off(
     result = pronunciation.analyze_audio("sample.wav", "throughout")
 
     assert whisper_calls == ["sample.wav"]
-    assert result[0] == 0
-    assert result[3] == ["throughout"]
+    assert result[0] == "hello"
+    assert result[1] == 0
+    assert result[4] == ["throughout"]
 
 
 def test_uses_azure_when_azure_on_and_complex(
@@ -137,7 +138,8 @@ def test_uses_azure_when_azure_on_and_complex(
 
     result = pronunciation.analyze_audio("sample.wav", "throughout")
 
-    assert result[0] == 88
+    assert result[0] == "mock transcript"
+    assert result[1] == 88
 
 
 def test_uses_whisper_when_azure_on_but_simple(
@@ -160,7 +162,8 @@ def test_uses_whisper_when_azure_on_but_simple(
     result = pronunciation.analyze_audio("sample.wav", "hello")
 
     assert whisper_calls == ["sample.wav"]
-    assert result[0] == 0
+    assert result[0] == "hello"
+    assert result[1] == 0
 
 
 @pytest.mark.asyncio
@@ -179,7 +182,7 @@ async def test_engine_field_reflects_actual(
     monkeypatch.setattr(
         practice,
         "analyze_audio_with_whisper",
-        lambda *_args: (90, "", "pass", [], [], {"hello": {"score": 100, "passed": True}}),
+        lambda *_args: ("heard hello", 90, "", "pass", [], [], {"hello": {"score": 100, "passed": True, "heard": "hello"}}),
     )
 
     response = await client.post(

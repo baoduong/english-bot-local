@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from httpx import AsyncClient
 
+from db.users import get_or_create_user
 from db.sessions import save_session
 
 
@@ -25,7 +26,7 @@ async def test_none_content_id_no_crash(client: AsyncClient, monkeypatch: pytest
         return func(*args, **kwargs)
 
     monkeypatch.setattr("api.routers.practice.asyncio.to_thread", _fake_to_thread)
-    monkeypatch.setattr("api.routers.practice.analyze_audio_with_whisper", lambda *_args, **_kwargs: (85, "", "", [], [], []))
+    monkeypatch.setattr("api.routers.practice.analyze_audio_with_whisper", lambda *_args, **_kwargs: ("hello world", 85, "", "", [], [], []))
     monkeypatch.setattr("api.routers.practice.analyze_phonemes_per_word", lambda *_args, **_kwargs: {})
     monkeypatch.setattr("api.routers.practice.get_prosody_analyzer", lambda: type("P", (), {"analyze": lambda self, *_args, **_kwargs: {}})())
     monkeypatch.setattr("api.routers.practice._transcode_to_wav_sync", lambda *_args, **_kwargs: None)
@@ -45,13 +46,14 @@ async def test_none_content_id_no_crash(client: AsyncClient, monkeypatch: pytest
         "drill_attempts": {},
         "fail_count": 0,
     }
-    save_session("u1", session)
+    get_or_create_user("validuser1", "User")
+    save_session("validuser1", session)
 
     audio_path = _make_m4a(tmp_path)
     with audio_path.open("rb") as audio_file:
         response = await client.post(
             "/practice/audio",
-            data={"user_id": "u1"},
+            data={"user_id": "validuser1"},
             files={"audio_file": (audio_path.name, audio_file, "audio/mp4")},
         )
 
@@ -70,13 +72,14 @@ async def test_invalid_content_id_returns_400(client: AsyncClient, tmp_path: Pat
         "drill_attempts": {},
         "fail_count": 0,
     }
-    save_session("u2", session)
+    get_or_create_user("validuser2", "User")
+    save_session("validuser2", session)
 
     audio_path = _make_m4a(tmp_path)
     with audio_path.open("rb") as audio_file:
         response = await client.post(
             "/practice/audio",
-            data={"user_id": "u2", "content_id": "abc"},
+            data={"user_id": "validuser2", "content_id": "abc"},
             files={"audio_file": (audio_path.name, audio_file, "audio/mp4")},
         )
 

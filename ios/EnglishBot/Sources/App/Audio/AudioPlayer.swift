@@ -6,6 +6,7 @@ public class AudioPlayer: ObservableObject {
     private var observerToken: NSObjectProtocol?
     @Published public var isPlaying = false
     private var cache: [URL: URL] = [:]
+    private var inFlightDownloads: Set<URL> = []
     private let cacheDir: URL = FileManager.default.temporaryDirectory.appendingPathComponent("audio_cache")
 
     public init() {
@@ -13,6 +14,7 @@ public class AudioPlayer: ObservableObject {
     }
 
     public func play(url: URL) {
+        stop()
         removeObserver()
 
         #if os(iOS)
@@ -31,14 +33,24 @@ public class AudioPlayer: ObservableObject {
             return
         }
 
+        guard !inFlightDownloads.contains(url) else {
+            return
+        }
+
+        inFlightDownloads.insert(url)
+
         let task = URLSession.shared.downloadTask(with: url) { [weak self] tempURL, _, error in
             guard let self = self, let tempURL = tempURL, error == nil else {
-                DispatchQueue.main.async { self?.playRemote(url) }
+                DispatchQueue.main.async {
+                    self?.inFlightDownloads.remove(url)
+                    self?.playRemote(url)
+                }
                 return
             }
             let dest = self.cacheDir.appendingPathComponent(UUID().uuidString + ".mp3")
             try? FileManager.default.moveItem(at: tempURL, to: dest)
             DispatchQueue.main.async {
+                self.inFlightDownloads.remove(url)
                 self.cache[url] = dest
                 self.playLocal(dest)
             }
@@ -47,10 +59,13 @@ public class AudioPlayer: ObservableObject {
     }
 
     public func clearCache() {
-        for localFile in cache.values {
+        stop()
+        let cachedFiles = Array(cache.values)
+        cache.removeAll()
+        inFlightDownloads.removeAll()
+        for localFile in cachedFiles {
             try? FileManager.default.removeItem(at: localFile)
         }
-        cache.removeAll()
     }
 
     public func stop() {

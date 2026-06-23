@@ -90,7 +90,7 @@ def _mock_passing_analysis(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         practice,
         "analyze_audio_with_whisper",
-        lambda *_args: (90, "", "pass", [], [], {"cats": {"score": 100, "passed": True}}),
+        lambda *_args: ("cats", 90, "", "pass", [], [], {"cats": {"score": 100, "passed": True, "heard": "cats"}}),
     )
     monkeypatch.setattr(practice, "analyze_phonemes_per_word", lambda *_args: {"cats": {"phoneme_match_ratio": 1.0}})
 

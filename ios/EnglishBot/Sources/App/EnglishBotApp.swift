@@ -6,6 +6,7 @@ import DesignSystem
 public extension Notification.Name {
     static let onboardingConfirmed = Notification.Name("eb.onboardingConfirmed")
     static let goalReset = Notification.Name("eb.goalReset")
+    static let phaseAdvanced = Notification.Name("eb.phaseAdvanced")
 }
 
 // MARK: - Navigation Route Token
@@ -21,7 +22,6 @@ public struct EnglishBotApp: View {
     @AppStorage("eb_userId") private var userId: String = ""
     @AppStorage("eb_onboardingDone") private var onboardingDone: Bool = false
     @AppStorage("eb_activeTab") private var activeTab: Int = 0
-    @State private var onboardingNavigated: Bool = false
     @State private var isShowingSettings = false
 
     public init() {}
@@ -40,7 +40,6 @@ public struct EnglishBotApp: View {
         .onReceive(NotificationCenter.default.publisher(for: .goalReset)) { _ in
             onboardingDone = false
             activeTab = 0
-            onboardingNavigated = false
         }
         .sheet(isPresented: $isShowingSettings) {
             NavigationStack {
@@ -58,10 +57,6 @@ public struct EnglishBotApp: View {
                     NotificationCenter.default.publisher(for: .onboardingConfirmed)
                 ) { _ in
                     onboardingDone = true
-                    onboardingNavigated = true
-                }
-                .navigationDestination(isPresented: $onboardingNavigated) {
-                    curriculumView
                 }
         }
     }

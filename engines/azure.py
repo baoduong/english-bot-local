@@ -59,8 +59,10 @@ def analyze_with_azure(audio_path, reference_sentence):
         if wav_path != audio_path and os.path.exists(wav_path):
             os.remove(wav_path)
 
+    transcript = result.text.strip()
+
     if result.reason != speechsdk.ResultReason.RecognizedSpeech:
-        return 0, "[Không nhận diện được giọng nói]", "❌ Không nghe rõ. Hãy nói to và rõ hơn nhé!", [], [], {}
+        return transcript, 0, "[Không nhận diện được giọng nói]", "❌ Không nghe rõ. Hãy nói to và rõ hơn nhé!", [], [], {}
 
     pron_result = speechsdk.PronunciationAssessmentResult(result)
     word_map = {w.word.lower(): w for w in pron_result.words}
@@ -79,25 +81,25 @@ def analyze_with_azure(audio_path, reference_sentence):
 
         if wd is None or wd.error_type == "Omission":
             formatted_words.append(f"{ANSI_GRAY}[{orig_word}]{ANSI_RESET}")
-            word_scores[clean] = {"score": 0, "passed": False}
+            word_scores[clean] = {"score": 0, "passed": False, "heard": ""}
             error_list.append(f"🔲 Từ **{orig_word}**: Bị bỏ sót hoàn toàn.")
             problem_words.append(clean)
             error_types.append((clean, "omission"))
         elif wd.accuracy_score >= 80:
             formatted_words.append(f"{ANSI_GREEN}{orig_word}{ANSI_RESET}")
             correct_points += 1.0
-            word_scores[clean] = {"score": wd.accuracy_score, "passed": True}
+            word_scores[clean] = {"score": wd.accuracy_score, "passed": True, "heard": wd.word.lower()}
         elif wd.accuracy_score >= 60:
             formatted_words.append(f"{ANSI_YELLOW}{orig_word}{ANSI_RESET}")
             correct_points += 0.6
-            word_scores[clean] = {"score": wd.accuracy_score, "passed": False}
+            word_scores[clean] = {"score": wd.accuracy_score, "passed": False, "heard": wd.word.lower()}
             error_list.append(f"⚠️ Từ **{orig_word}**: Chưa chuẩn âm (Azure: {int(wd.accuracy_score)}/100).")
             problem_words.append(clean)
             error_types.append((clean, classify_error(orig_word, "")))
         else:
             formatted_words.append(f"{ANSI_RED}{orig_word}{ANSI_RESET}")
             correct_points += 0.1
-            word_scores[clean] = {"score": wd.accuracy_score, "passed": False}
+            word_scores[clean] = {"score": wd.accuracy_score, "passed": False, "heard": wd.word.lower()}
             error_list.append(f"❌ Từ **{orig_word}**: Sai âm (Azure: {int(wd.accuracy_score)}/100).")
             problem_words.append(clean)
             error_types.append((clean, classify_error(orig_word, "")))
@@ -106,7 +108,7 @@ def analyze_with_azure(audio_path, reference_sentence):
     final_score = max(0, min(100, int((correct_points / total_words) * 100) if total_words > 0 else 0))
     ansi_feedback = " ".join(formatted_words)
     error_details = "\n".join(error_list) if error_list else "🎉 Xuất sắc! Phát âm không tì vết."
-    return final_score, ansi_feedback, error_details, problem_words, error_types, word_scores
+    return transcript, final_score, ansi_feedback, error_details, problem_words, error_types, word_scores
 
 
 def analyze_single_word_azure(audio_path, target_word):

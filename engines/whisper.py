@@ -11,6 +11,7 @@ print("🟩 Mô hình Whisper đã sẵn sàng!")
 def analyze_with_whisper(audio_path, reference_sentence):
     """Chấm điểm bằng Whisper small + phoneme similarity (chạy local, không cần internet)"""
     result = whisper_model.transcribe(audio_path, word_timestamps=True, language="en")
+    transcript = (result.get("text") or "").strip()
 
     detected_words = []
     for segment in result.get("segments", []):
@@ -45,11 +46,19 @@ def analyze_with_whisper(audio_path, reference_sentence):
                 if word_data["confidence"] >= 0.75:
                     formatted_words.append(f"{ANSI_GREEN}{orig_text}{ANSI_RESET}")
                     correct_points += 1.0
-                    word_scores[clean_word(orig_text)] = {"score": 100, "passed": True}
+                    word_scores[clean_word(orig_text)] = {
+                        "score": 100,
+                        "passed": True,
+                        "heard": word_data["text"],
+                    }
                 elif word_data["confidence"] >= 0.50:
                     formatted_words.append(f"{ANSI_YELLOW}{orig_text}{ANSI_RESET}")
                     correct_points += 0.6
-                    word_scores[clean_word(orig_text)] = {"score": 60, "passed": False}
+                    word_scores[clean_word(orig_text)] = {
+                        "score": 60,
+                        "passed": False,
+                        "heard": word_data["text"],
+                    }
                     err_type = classify_error(orig_text, word_data["text"])
                     error_types.append((clean_word(orig_text), err_type))
                     tip = get_articulatory_tip(err_type)
@@ -60,7 +69,11 @@ def analyze_with_whisper(audio_path, reference_sentence):
                     if phon_sim >= 0.75:
                         formatted_words.append(f"{ANSI_YELLOW}{orig_text}{ANSI_RESET}")
                         correct_points += 0.5
-                        word_scores[clean_word(orig_text)] = {"score": 50, "passed": False}
+                        word_scores[clean_word(orig_text)] = {
+                            "score": 50,
+                            "passed": False,
+                            "heard": word_data["text"],
+                        }
                         err_type = classify_error(orig_text, word_data["text"])
                         error_types.append((clean_word(orig_text), err_type))
                         tip = get_articulatory_tip(err_type)
@@ -69,7 +82,11 @@ def analyze_with_whisper(audio_path, reference_sentence):
                     else:
                         formatted_words.append(f"{ANSI_RED}{orig_text}{ANSI_RESET}")
                         correct_points += 0.1
-                        word_scores[clean_word(orig_text)] = {"score": 10, "passed": False}
+                        word_scores[clean_word(orig_text)] = {
+                            "score": 10,
+                            "passed": False,
+                            "heard": word_data["text"],
+                        }
                         err_type = classify_error(orig_text, word_data["text"])
                         error_types.append((clean_word(orig_text), err_type))
                         tip = get_articulatory_tip(err_type)
@@ -85,7 +102,11 @@ def analyze_with_whisper(audio_path, reference_sentence):
                 if phon_sim >= 0.70:
                     formatted_words.append(f"{ANSI_YELLOW}{expected}{ANSI_RESET}")
                     correct_points += 0.5
-                    word_scores[clean_word(expected)] = {"score": 50, "passed": False}
+                    word_scores[clean_word(expected)] = {
+                        "score": 50,
+                        "passed": False,
+                        "heard": heard_word,
+                    }
                     tip = get_articulatory_tip(classify_error(expected, heard_word))
                     error_list.append(f"⚠️ Từ **{expected}**: Gần đúng (AI nghe: *{heard_word}*).\n{tip}")
                     problem_words.append(clean_word(expected))
@@ -93,7 +114,11 @@ def analyze_with_whisper(audio_path, reference_sentence):
                 else:
                     formatted_words.append(f"{ANSI_RED}{expected}{ANSI_RESET}")
                     correct_points += 0.0
-                    word_scores[clean_word(expected)] = {"score": 0, "passed": False}
+                    word_scores[clean_word(expected)] = {
+                        "score": 0,
+                        "passed": False,
+                        "heard": heard_word,
+                    }
                     tip = get_articulatory_tip(classify_error(expected, heard_word))
                     error_list.append(f"❌ Từ **{expected}**: Sai âm (AI nghe: *{heard_word}*).\n{tip}")
                     problem_words.append(clean_word(expected))
@@ -101,7 +126,7 @@ def analyze_with_whisper(audio_path, reference_sentence):
             for idx in range(i1 + len(pairs), i2):
                 missing_word = ref_words_original[idx]
                 formatted_words.append(f"{ANSI_GRAY}[{missing_word}]{ANSI_RESET}")
-                word_scores[clean_word(missing_word)] = {"score": 0, "passed": False}
+                word_scores[clean_word(missing_word)] = {"score": 0, "passed": False, "heard": ""}
                 error_list.append(f"🔲 Từ **{missing_word}**: Bị nuốt hoàn toàn.\n{get_articulatory_tip('omission')}")
                 problem_words.append(clean_word(missing_word))
                 error_types.append((clean_word(missing_word), "omission"))
@@ -110,7 +135,7 @@ def analyze_with_whisper(audio_path, reference_sentence):
             for idx in range(i1, i2):
                 missing_word = ref_words_original[idx]
                 formatted_words.append(f"{ANSI_GRAY}[{missing_word}]{ANSI_RESET}")
-                word_scores[clean_word(missing_word)] = {"score": 0, "passed": False}
+                word_scores[clean_word(missing_word)] = {"score": 0, "passed": False, "heard": ""}
                 error_list.append(f"🔲 Từ **{missing_word}**: Bị nuốt hoàn toàn.\n{get_articulatory_tip('omission')}")
                 problem_words.append(clean_word(missing_word))
                 error_types.append((clean_word(missing_word), "omission"))
@@ -130,7 +155,7 @@ def analyze_with_whisper(audio_path, reference_sentence):
     ansi_feedback = " ".join(formatted_words)
     error_details = "\n".join(error_list) if error_list else "🎉 Xuất sắc! Phát âm không tì vết."
 
-    return final_score, ansi_feedback, error_details, problem_words, error_types, word_scores
+    return transcript, final_score, ansi_feedback, error_details, problem_words, error_types, word_scores
 
 
 def analyze_single_word_whisper(audio_path, target_word):

@@ -9,7 +9,9 @@ from contextlib import suppress
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal, cast
-from uuid import uuid4
+from uuid import UUID, uuid4
+
+from starlette.background import BackgroundTask
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi import Query
@@ -70,7 +72,7 @@ from db.curriculum import (
 )
 from db.sessions import delete_session, load_all_sessions, save_session
 from db.tracking import log_error_pattern, log_score
-from db.users import get_or_create_user, needs_onboarding
+from db.users import needs_onboarding
 from db.word_stats import record_word_attempts_batch
 from engines.tts import generate_chunked_audio, generate_sample_audio
 from db.connection import get_db_connection
@@ -100,7 +102,27 @@ def _save_session_sync(user_id: str, session: dict[str, Any]) -> None:
 
 
 def _require_user_sync(user_id: str) -> dict[str, Any]:
-    user = get_or_create_user(user_id, "User")
+    normalized_user_id = user_id.strip()
+    if not normalized_user_id:
+        raise _error(400, "INVALID_USER_ID", "user_id must be a non-empty UUID or 8-64 character alphanumeric string.")
+
+    is_uuid = False
+    with suppress(ValueError, AttributeError, TypeError):
+        UUID(normalized_user_id)
+        is_uuid = True
+
+    compact_user_id = normalized_user_id.replace("-", "")
+    is_alphanumeric = compact_user_id.isalnum() and 8 <= len(normalized_user_id) <= 64
+    if not (is_uuid or is_alphanumeric):
+        raise _error(400, "INVALID_USER_ID", "user_id must be a non-empty UUID or 8-64 character alphanumeric string.")
+
+    conn = get_db_connection()
+    try:
+        row = conn.execute("SELECT * FROM users WHERE user_id = ?", (normalized_user_id,)).fetchone()
+    finally:
+        conn.close()
+
+    user = dict(row) if row else None
     if not user:
         raise _error(404, "USER_NOT_FOUND", "User not found.")
     return user
@@ -335,12 +357,28 @@ def _score_color_from_confidence(
     return "red", phon_sim, 10
 
 
+def _score_color_from_accuracy(accuracy: float, expected_word: str, heard_word: str | None) -> tuple[Literal["green", "yellow", "red", "gray"], float]:
+    if not heard_word:
+        return "gray", 0.0
+    phon_sim = 1.0 if clean_word(heard_word) == clean_word(expected_word) else phoneme_similarity(heard_word, expected_word)
+    if accuracy >= 80:
+        return "green", phon_sim
+    if accuracy >= 60:
+        return "yellow", phon_sim
+    return "red", phon_sim
+
+
 def _build_word_scores(
     expected_text: str,
     analysis: tuple[Any, ...],
     per_word_phonemes: dict[str, dict[str, Any]] | None = None,
 ) -> tuple[list[WordScore], list[str], list[str], dict[str, Any]]:
-    _, _, _, _, error_types, raw_word_scores = analysis
+    transcript = ""
+    if len(analysis) == 7:
+        transcript, _score, _ansi_feedback, _feedback_message, _problem_words, error_types, raw_word_scores = analysis
+    else:
+        _score, _ansi_feedback, _feedback_message, _problem_words, error_types, raw_word_scores = analysis
+    error_types = cast(list[tuple[str, str]], error_types or [])
     score_map: dict[str, Any] = raw_word_scores or {}
     per_word_phonemes = per_word_phonemes or {}
     words: list[WordScore] = []
@@ -371,9 +409,9 @@ def _build_word_scores(
             weak_words.append(clean)
             labels.append(ERROR_TYPE_LABELS["omission"])
             continue
-        heard = clean if raw.get("passed") else clean
-        confidence = 1.0 if raw.get("score") == 100 else (0.6 if raw.get("score") == 60 else 0.5 if raw.get("score") == 50 else 0.1)
-        color, phon_sim, accuracy = _score_color_from_confidence(confidence, token, heard)
+        heard = raw.get("heard") or ""
+        accuracy = int(raw.get("score", 0))
+        color, phon_sim = _score_color_from_accuracy(accuracy, token, heard)
         if raw.get("score") == 0:
             color, phon_sim, accuracy = cast(Literal["gray"], "gray"), 0.0, 0
         tip = None
@@ -382,7 +420,7 @@ def _build_word_scores(
         target_ipa = None
         practice_examples: list[str] = []
         if not raw.get("passed"):
-            err_type = next((etype for word, etype in error_types if word == clean), classify_error(token, heard))
+            err_type = next((etype for word, etype in error_types if word == clean), classify_error(token, heard or token))
             error_type = err_type
             error_label = ERROR_TYPE_LABELS.get(err_type, ERROR_TYPE_LABELS["general"])
             target_ipa = get_target_ipa(token)
@@ -394,7 +432,7 @@ def _build_word_scores(
         words.append(
             WordScore(
                 word=token,
-                accuracy=int(raw.get("score", accuracy)),
+                accuracy=accuracy,
                 color=color,
                 phoneme_similarity=float(phon_sim),
                 tip=tip,
@@ -864,7 +902,11 @@ async def score_practice_audio(
             prosody = await asyncio.to_thread(get_prosody_analyzer().analyze, str(wav_path), word_count)
         except Exception as exc:
             print(f"⚠️ Prosody analysis failed: {exc}")
-        overall_score, _ansi_feedback, feedback_message, problem_words, error_types, _word_scores = analysis
+        if len(analysis) == 7:
+            transcript, overall_score, _ansi_feedback, feedback_message, error_types, _problem_words, _word_scores = analysis
+        else:
+            overall_score, _ansi_feedback, feedback_message, _problem_words, error_types, _word_scores = analysis
+            transcript = expected
         word_scores, weak_words, error_labels, score_map = await asyncio.to_thread(
             _build_word_scores,
             expected,
@@ -913,7 +955,8 @@ async def score_practice_audio(
                     for ws in word_scores:
                         if clean_word(ws.word) == normalized_drill_word:
                             accuracy_ok = ws.accuracy >= 80
-                            phoneme_ok = ws.phoneme_match_ratio is None or ws.phoneme_match_ratio >= 0.6
+                            detected_phonemes = len(ws.detected_ipa or "")
+                            phoneme_ok = detected_phonemes < 3 or ws.phoneme_match_ratio is None or ws.phoneme_match_ratio >= 0.6
                             drill_word_passed = accuracy_ok and phoneme_ok
                             break
 
@@ -950,7 +993,7 @@ async def score_practice_audio(
                         message=f"Tuyệt! Tiếp theo: '{drill_words[new_idx]}'",
                         focus_words=[drill_words[new_idx]],
                     )
-            elif overall_score >= 80 and target_words_passed and new_consec >= 2:
+            elif int(overall_score) >= 80 and target_words_passed and new_consec >= 2:
                 session.setdefault("session_stats", {}).setdefault("passed_first_try", 0)
                 if int(session.get("fail_count") or 0) == 0:
                     session["session_stats"]["passed_first_try"] += 1
@@ -965,7 +1008,7 @@ async def score_practice_audio(
                     )
                 else:
                     next_action = NextActionHint(action="pass", message="Mastered! Continue to the next sentence.")
-            elif overall_score >= 80 and target_words_passed:
+            elif int(overall_score) >= 80 and target_words_passed:
                 session["fail_count"] = 0
                 next_action = NextActionHint(
                     action="retry",
@@ -1043,8 +1086,8 @@ async def score_practice_audio(
         response = PracticeAudioResponse(
             scoring=ScoringResult(
                 overall_score=int(overall_score),
-                passed=overall_score >= 80,
-                transcript=expected,
+                passed=int(overall_score) >= 80,
+                transcript=str(transcript or expected),
                 expected_text=expected,
                 engine=engine_used,
                 weak_words=weak_words,
@@ -1126,7 +1169,7 @@ async def score_scratch_audio(
             print(f"⚠️ Phoneme recognition failed: {exc}")
             per_word_phonemes = {}
 
-        overall_score, _ansi_feedback, _feedback_message, _problem_words, _error_types, _raw_word_scores = analysis
+        _transcript, overall_score, _ansi_feedback, _feedback_message, _problem_words, _error_types, _raw_word_scores = analysis
         word_scores, _weak_words, _error_labels, _score_map = await asyncio.to_thread(
             _build_word_scores,
             expected,
@@ -1135,8 +1178,8 @@ async def score_scratch_audio(
         )
 
         transcript = ""
-        if len(analysis) > 6 and isinstance(analysis[6], str):
-            transcript = analysis[6]
+        if analysis and isinstance(analysis[0], str):
+            transcript = analysis[0]
         if not transcript:
             transcript = expected
 
@@ -1196,7 +1239,13 @@ async def get_practice_sample_audio(
             success = await generate_sample_audio(text, str(tmp_path))
         if not success or not tmp_path.exists():
             raise _error(400, "SAMPLE_AUDIO_FAILED", "Failed to generate teacher sample audio.")
-        return FileResponse(str(tmp_path), media_type="audio/mpeg", filename=f"sample-{uuid4()}.mp3")
+        cleanup_task = BackgroundTask(lambda: tmp_path.unlink(missing_ok=True))
+        return FileResponse(
+            str(tmp_path),
+            media_type="audio/mpeg",
+            filename=f"sample-{uuid4()}.mp3",
+            background=cleanup_task,
+        )
     except HTTPException:
         with suppress(Exception):
             if tmp_path.exists():

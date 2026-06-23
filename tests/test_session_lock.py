@@ -51,7 +51,7 @@ async def test_same_user_serialized(client, monkeypatch: pytest.MonkeyPatch) -> 
 
     monkeypatch.setattr(practice, "_require_user_sync", lambda uid: {"id": uid})
     monkeypatch.setattr(practice, "_transcode_to_wav_sync", lambda *_args: None)
-    monkeypatch.setattr(practice, "analyze_audio_with_whisper", lambda *_args: (50, "", "retry", [], [], {}))
+    monkeypatch.setattr(practice, "analyze_audio_with_whisper", lambda *_args: ("", 50, "", "retry", [], [], {}))
     monkeypatch.setattr(practice, "analyze_phonemes_per_word", lambda *_args: {})
 
     class _Prosody:
@@ -135,7 +135,7 @@ async def test_different_users_parallel(client, monkeypatch: pytest.MonkeyPatch)
 
     def slow_analyze(_wav_path: str, _expected: str):
         time.sleep(0.2)
-        return (50, "", "retry", [], [], {})
+        return ("", 50, "", "retry", [], [], {})
 
     monkeypatch.setattr(practice, "analyze_audio_with_whisper", slow_analyze)
     monkeypatch.setattr(practice, "analyze_phonemes_per_word", lambda *_args: {})

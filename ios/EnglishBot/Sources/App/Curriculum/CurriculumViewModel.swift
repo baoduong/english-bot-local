@@ -17,8 +17,11 @@ public class CurriculumViewModel: ObservableObject {
         self.apiClient = apiClient
     }
     
-    public func fetchCurrentCurriculum() async {
+    public func load() async {
         isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
         do {
             let response = try await apiClient.getCurrentCurriculum(userId: userId)
             self.curriculum = response.curriculum
@@ -29,7 +32,10 @@ public class CurriculumViewModel: ObservableObject {
         } catch {
             self.errorMessage = error.localizedDescription
         }
-        isLoading = false
+    }
+
+    public func fetchCurrentCurriculum() async {
+        await load()
     }
     
     public func fetchPhaseDetail(phaseId: Int) async {

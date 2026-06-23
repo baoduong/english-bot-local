@@ -99,7 +99,7 @@ def _mock_analysis(monkeypatch: pytest.MonkeyPatch, scores: list[int]) -> dict[s
         index = min(call_counter["count"], len(scores) - 1)
         call_counter["count"] += 1
         score = scores[index]
-        return (score, "", "retry", ["cats"], [("cats", "final_consonant")], {"cats": {"score": score, "passed": False}, "like": {"score": 100, "passed": True}, "i": {"score": 100, "passed": True}})
+        return ("i like cats", score, "", "retry", ["cats"], [("cats", "final_consonant")], {"cats": {"score": score, "passed": False, "heard": "cat"}, "like": {"score": 100, "passed": True, "heard": "like"}, "i": {"score": 100, "passed": True, "heard": "i"}})
 
     monkeypatch.setattr(practice, "analyze_audio_with_whisper", _analyze)
     monkeypatch.setattr(

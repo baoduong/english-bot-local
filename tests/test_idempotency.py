@@ -95,7 +95,7 @@ def _mock_analysis(monkeypatch: pytest.MonkeyPatch, scores: list[int]) -> dict[s
         index = call_counter["count"]
         call_counter["count"] += 1
         score = scores[index]
-        return (score, "", "pass", [], [], {"cats": {"score": 100, "passed": True}})
+        return ("cats", score, "", "pass", [], [], {"cats": {"score": 100, "passed": True, "heard": "cats"}})
 
     monkeypatch.setattr(practice, "analyze_audio_with_whisper", _analyze)
     monkeypatch.setattr(practice, "analyze_phonemes_per_word", lambda *_args: {"cats": {"phoneme_match_ratio": 1.0}})

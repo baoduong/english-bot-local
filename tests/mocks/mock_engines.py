@@ -5,7 +5,7 @@ from typing import Any
 
 WhisperResponse = dict[str, Any]
 AzureWordScores = dict[str, dict[str, int | bool]]
-AzureAnalyzeResult = tuple[int, str, str, list[str], list[tuple[str, str]], AzureWordScores]
+AzureAnalyzeResult = tuple[str, int, str, str, list[str], list[tuple[str, str]], AzureWordScores]
 PhonemeRecognitionResult = dict[str, list[str] | list[float]]
 
 
@@ -34,11 +34,12 @@ class MockWhisper:
 
 class MockAzureScorer:
     def __init__(self) -> None:
-        self.response: AzureAnalyzeResult = (0, "", "", [], [], {})
+        self.response: AzureAnalyzeResult = ("", 0, "", "", [], [], {})
         self._next_failure: Exception | None = None
 
     def set_score(self, overall: int, word_scores: AzureWordScores) -> None:
         self.response = (
+            "mock transcript",
             overall,
             "mock ansi feedback",
             "mock error details",

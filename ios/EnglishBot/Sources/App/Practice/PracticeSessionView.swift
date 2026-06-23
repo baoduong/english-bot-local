@@ -436,7 +436,7 @@ private struct SentencePracticeView: View {
                     apiClient: viewModel.apiClient,
                     userId: viewModel.userId,
                     onSkipRequested: { Task { await viewModel.skip() } },
-                    onContinueRequested: { viewModel.coachingHint = nil }
+                    onContinueRequested: { viewModel.retryCurrentSentence() }
                 )
                 .padding(.top, Spacing.sm)
             }

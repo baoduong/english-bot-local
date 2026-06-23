@@ -42,14 +42,14 @@ async def test_last_item_mastery_signals_phase_complete(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    _, phase_id = _seed_phase_with_content("u1", [(1, "hello world")])
+    _, phase_id = _seed_phase_with_content("validuser3", [(1, "hello world")])
     save_session(
-        "u1",
+        "validuser3",
         {
             "mode": "curriculum_practice",
             "content_id": 1,
             "current_phase_id": phase_id,
-            "curriculum_id": get_active_curriculum("u1")["id"],
+            "curriculum_id": get_active_curriculum("validuser3")["id"],
             "sentence": "hello world",
             "scores": [],
             "drill_words": [],
@@ -59,7 +59,7 @@ async def test_last_item_mastery_signals_phase_complete(
         },
     )
 
-    monkeypatch.setattr("api.routers.practice.analyze_audio_with_whisper", lambda *_args, **_kwargs: (90, "", "", [], [], []))
+    monkeypatch.setattr("api.routers.practice.analyze_audio_with_whisper", lambda *_args, **_kwargs: ("hello world", 90, "", "", [], [], []))
     monkeypatch.setattr("api.routers.practice.analyze_phonemes_per_word", lambda *_args, **_kwargs: {})
     monkeypatch.setattr("api.routers.practice.get_prosody_analyzer", lambda: type("P", (), {"analyze": lambda self, *_args, **_kwargs: {}})())
     monkeypatch.setattr("api.routers.practice._transcode_to_wav_sync", lambda *_args, **_kwargs: None)
@@ -73,7 +73,7 @@ async def test_last_item_mastery_signals_phase_complete(
     with audio_path.open("rb") as audio_file:
         response = await client.post(
             "/practice/audio",
-            data={"user_id": "u1"},
+            data={"user_id": "validuser3"},
             files={"audio_file": (audio_path.name, audio_file, "audio/mp4")},
         )
 
@@ -89,14 +89,14 @@ async def test_non_last_item_advances_normally(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    _, phase_id = _seed_phase_with_content("u2", [(1, "hello world"), (2, "good morning")])
+    _, phase_id = _seed_phase_with_content("validuser4", [(1, "hello world"), (2, "good morning")])
     save_session(
-        "u2",
+        "validuser4",
         {
             "mode": "curriculum_practice",
             "content_id": 1,
             "current_phase_id": phase_id,
-            "curriculum_id": get_active_curriculum("u2")["id"],
+            "curriculum_id": get_active_curriculum("validuser4")["id"],
             "sentence": "hello world",
             "scores": [],
             "drill_words": [],
@@ -106,7 +106,7 @@ async def test_non_last_item_advances_normally(
         },
     )
 
-    monkeypatch.setattr("api.routers.practice.analyze_audio_with_whisper", lambda *_args, **_kwargs: (90, "", "", [], [], []))
+    monkeypatch.setattr("api.routers.practice.analyze_audio_with_whisper", lambda *_args, **_kwargs: ("hello world", 90, "", "", [], [], []))
     monkeypatch.setattr("api.routers.practice.analyze_phonemes_per_word", lambda *_args, **_kwargs: {})
     monkeypatch.setattr("api.routers.practice.get_prosody_analyzer", lambda: type("P", (), {"analyze": lambda self, *_args, **_kwargs: {}})())
     monkeypatch.setattr("api.routers.practice._transcode_to_wav_sync", lambda *_args, **_kwargs: None)
@@ -120,7 +120,7 @@ async def test_non_last_item_advances_normally(
     with audio_path.open("rb") as audio_file:
         response = await client.post(
             "/practice/audio",
-            data={"user_id": "u2"},
+            data={"user_id": "validuser4"},
             files={"audio_file": (audio_path.name, audio_file, "audio/mp4")},
         )
 

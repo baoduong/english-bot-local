@@ -35,8 +35,9 @@ def test_azure_returns_configured_score() -> None:
 
     result = mock.analyze("/tmp/fix_correct.wav", "fix")
 
-    assert result[0] == 85
-    assert result[5]["fix"]["score"] == 90
+    assert result[0] == "mock transcript"
+    assert result[1] == 85
+    assert result[6]["fix"]["score"] == 90
 
 
 def test_azure_failure_raises() -> None:

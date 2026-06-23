@@ -32,6 +32,10 @@ public class PracticeViewModel: ObservableObject {
     private var currentContentId: Int?
     private var pollingTask: Task<Void, Never>?
 
+    private func deleteRecordedAudio(at url: URL) {
+        try? FileManager.default.removeItem(at: url)
+    }
+
     public init(userId: String, apiClient: APIClient = APIClient.shared) {
         self.userId = userId
         self.apiClient = apiClient
@@ -157,6 +161,7 @@ public class PracticeViewModel: ObservableObject {
                 contentId: currentContentId,
                 expectedText: currentSentence.isEmpty ? nil : currentSentence
             )
+            deleteRecordedAudio(at: url)
             scoreResult = response.scoring
             nextAction = response.nextAction
             coachingHint = nil
@@ -164,6 +169,7 @@ public class PracticeViewModel: ObservableObject {
             state = .scored
             startCoachingPolling()
         } catch {
+            deleteRecordedAudio(at: url)
             errorMessage = error.localizedDescription
             state = .idle
         }
@@ -204,11 +210,22 @@ public class PracticeViewModel: ObservableObject {
         errorMessage = nil
         do {
             _ = try await apiClient.advancePhase(userId: userId)
+            NotificationCenter.default.post(name: .phaseAdvanced, object: nil)
+            hasStarted = false
             await startSession()
         } catch {
             errorMessage = error.localizedDescription
         }
         isAdvancingPhase = false
+    }
+
+    public func retryCurrentSentence() {
+        cancelCoachingPolling()
+        state = .idle
+        scoreResult = nil
+        coachingHint = nil
+        nextAction = nil
+        errorMessage = nil
     }
 
     public func next() async {

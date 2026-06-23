@@ -16,7 +16,7 @@ def _audio_payload_with_bytes(audio_bytes: bytes) -> tuple[str, bytes, str]:
 
 
 def _seed_practice_context(*, mode: str) -> tuple[str, int]:
-    user_id = f"user-{mode}"
+    user_id = f"user{mode.replace('_', '')}01"
     content_id = 5
     conn = get_db_connection()
     try:
@@ -95,7 +95,7 @@ def _mock_passing_analysis(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         practice,
         "analyze_audio_with_whisper",
-        lambda *_args: (90, "", "pass", [], [], {"cats": {"score": 100, "passed": True}}),
+        lambda *_args: ("cats", 90, "", "pass", [], [], {"cats": {"score": 100, "passed": True, "heard": "cats"}}),
     )
     monkeypatch.setattr(practice, "analyze_phonemes_per_word", lambda *_args: {"cats": {"phoneme_match_ratio": 1.0}})
 
