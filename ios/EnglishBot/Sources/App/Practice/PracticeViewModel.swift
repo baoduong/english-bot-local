@@ -20,6 +20,7 @@ public class PracticeViewModel: ObservableObject {
     @Published public var isAdvancingPhase: Bool = false
     @Published public var phaseProgress: PhaseProgress?
     @Published public var consecutivePasses: Int = 0
+    @Published private(set) var hasStarted: Bool = false
 
     // For Word Drill
     @Published public var isWordDrill: Bool = false
@@ -71,6 +72,7 @@ public class PracticeViewModel: ObservableObject {
     }
 
     public func startSession() async {
+        guard !hasStarted else { return }
         state = .idle
         errorMessage = nil
         do {
@@ -79,16 +81,19 @@ public class PracticeViewModel: ObservableObject {
             scoreResult = nil
             nextAction = nil
             coachingHint = nil
+            hasStarted = true
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
     public func onRecordingStarted() {
+        guard state != .uploading else { return }
         state = .recording
     }
 
     public func onRecordingStopped(url: URL?) async {
+        guard state != .uploading else { return }
         guard let url = url else { return }
         state = .uploading
         errorMessage = nil
@@ -103,7 +108,7 @@ public class PracticeViewModel: ObservableObject {
             nextAction = response.nextAction
             coachingHint = response.coaching
             consecutivePasses = response.consecutivePasses
-            currentContentId = response.currentItem.contentId
+            currentContentId = response.currentItem?.contentId
             state = .scored
         } catch {
             errorMessage = error.localizedDescription
@@ -126,6 +131,7 @@ public class PracticeViewModel: ObservableObject {
     }
 
     public func stop() async {
+        hasStarted = false
         errorMessage = nil
         do {
             _ = try await apiClient.stopPracticeSession(userId: userId)

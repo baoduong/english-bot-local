@@ -12,11 +12,18 @@ public enum APIError: Error {
 public class APIClient: ObservableObject {
     private static let baseURLDefaultsKey = "eb_apiBaseURL"
     public static let shared = APIClient(baseURL: APIClient.resolveBaseURL())
+    public static let configuredSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 180
+        config.waitsForConnectivity = true
+        return URLSession(configuration: config)
+    }()
 
     public let baseURL: URL
     private let session: URLSession
     
-    public init(baseURL: URL = URL(string: "http://localhost:8000")!, session: URLSession = .shared) {
+    public init(baseURL: URL = URL(string: "http://localhost:8000")!, session: URLSession = APIClient.configuredSession) {
         self.baseURL = baseURL
         self.session = session
     }

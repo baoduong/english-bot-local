@@ -37,8 +37,8 @@ public struct WordScore: Codable, Identifiable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         word = try container.decode(String.self, forKey: .word)
         accuracy = try container.decode(Int.self, forKey: .accuracy)
-        color = try container.decode(String.self, forKey: .color)
-        phonemeSimilarity = try container.decode(Double.self, forKey: .phonemeSimilarity)
+        color = try container.decodeIfPresent(String.self, forKey: .color) ?? "green"
+        phonemeSimilarity = try container.decodeIfPresent(Double.self, forKey: .phonemeSimilarity) ?? 0.0
         tip = try container.decodeIfPresent(String.self, forKey: .tip)
         errorType = try container.decodeIfPresent(String.self, forKey: .errorType)
         errorLabel = try container.decodeIfPresent(String.self, forKey: .errorLabel)
@@ -258,12 +258,12 @@ public struct ScoringResult: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         overallScore = try container.decode(Int.self, forKey: .overallScore)
         passed = try container.decode(Bool.self, forKey: .passed)
-        transcript = try container.decode(String.self, forKey: .transcript)
-        expectedText = try container.decode(String.self, forKey: .expectedText)
-        engine = try container.decode(String.self, forKey: .engine)
-        weakWords = try container.decode([String].self, forKey: .weakWords)
-        errorTypes = try container.decode([String].self, forKey: .errorTypes)
-        feedbackMessage = try container.decode(String.self, forKey: .feedbackMessage)
+        transcript = try container.decodeIfPresent(String.self, forKey: .transcript) ?? ""
+        expectedText = try container.decodeIfPresent(String.self, forKey: .expectedText) ?? ""
+        engine = try container.decodeIfPresent(String.self, forKey: .engine) ?? "whisper"
+        weakWords = try container.decodeIfPresent([String].self, forKey: .weakWords) ?? []
+        errorTypes = try container.decodeIfPresent([String].self, forKey: .errorTypes) ?? []
+        feedbackMessage = try container.decodeIfPresent(String.self, forKey: .feedbackMessage) ?? ""
         wordScores = try container.decode([WordScore].self, forKey: .wordScores)
         sampleAudio = try container.decodeIfPresent(SampleAudio.self, forKey: .sampleAudio)
         fluencyScore = try container.decodeIfPresent(Int.self, forKey: .fluencyScore)
@@ -369,7 +369,7 @@ public struct PracticeAudioResponse: Codable {
     public let nextAction: NextActionHint
     public let coaching: CoachingHint?
     public let session: PracticeSessionState
-    public let currentItem: PracticeContentItem
+    public let currentItem: PracticeContentItem?
     public let consecutivePasses: Int
     
     public init(from decoder: Decoder) throws {
@@ -378,7 +378,7 @@ public struct PracticeAudioResponse: Codable {
         nextAction = try container.decode(NextActionHint.self, forKey: .nextAction)
         coaching = try container.decodeIfPresent(CoachingHint.self, forKey: .coaching)
         session = try container.decode(PracticeSessionState.self, forKey: .session)
-        currentItem = try container.decode(PracticeContentItem.self, forKey: .currentItem)
+        currentItem = try container.decodeIfPresent(PracticeContentItem.self, forKey: .currentItem)
         consecutivePasses = try container.decodeIfPresent(Int.self, forKey: .consecutivePasses) ?? 0
     }
     

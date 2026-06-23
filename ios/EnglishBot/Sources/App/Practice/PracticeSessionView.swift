@@ -196,6 +196,8 @@ private struct SentencePracticeView: View {
                         .background(Color.BotTheme.primary)
                         .cornerRadius(Spacing.md)
                 }
+            } else if viewModel.state == .uploading {
+                LoadingIndicator()
             } else {
                 RecordButton(isRecording: audioRecorder.isRecording) {
                     if audioRecorder.isRecording {
