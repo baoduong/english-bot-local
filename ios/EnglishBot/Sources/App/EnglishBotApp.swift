@@ -77,6 +77,7 @@ public struct EnglishBotApp: View {
                     .navigationTitle("Practice")
                     #if os(iOS)
                     .navigationBarTitleDisplayMode(.inline)
+                    .toolbar(.hidden, for: .navigationBar)
                     #endif
             }
             .tabItem {
@@ -111,6 +112,7 @@ public struct EnglishBotApp: View {
                         .navigationTitle("Practice")
                         #if os(iOS)
                         .navigationBarTitleDisplayMode(.inline)
+                        .toolbar(.hidden, for: .navigationBar)
                         #endif
                 case .progress:
                     ProgressDashboardView(userId: userId)

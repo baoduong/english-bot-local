@@ -32,12 +32,14 @@ def _should_use_azure(text):
 
 
 def analyze_audio(audio_path, reference_sentence):
-    """Entry point chính — smart routing: Ollama phân loại độ khó → Azure (khó) hoặc Whisper (dễ)"""
-    if _should_use_azure(reference_sentence):
-        print(f"🔵 Azure: \"{reference_sentence[:40]}...\"")
-        return analyze_with_azure(audio_path, reference_sentence)
-    print(f"🟢 Whisper: \"{reference_sentence[:40]}...\"")
-    return analyze_with_whisper(audio_path, reference_sentence)
+    print(f"🔵 Azure: \"{reference_sentence[:40]}...\"")
+    return analyze_with_azure(audio_path, reference_sentence)
+    # """Entry point chính — smart routing: Ollama phân loại độ khó → Azure (khó) hoặc Whisper (dễ)"""
+    # if _should_use_azure(reference_sentence):
+    #     print(f"🔵 Azure: \"{reference_sentence[:40]}...\"")
+    #     return analyze_with_azure(audio_path, reference_sentence)
+    # print(f"🟢 Whisper: \"{reference_sentence[:40]}...\"")
+    # return analyze_with_whisper(audio_path, reference_sentence)
 
 
 def analyze_single_word(audio_path, target_word):

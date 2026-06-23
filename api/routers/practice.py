@@ -674,6 +674,7 @@ async def score_practice_audio(
             per_word_phonemes,
         )
 
+        drill_word_passed = False
         if session.get("mode") == "word_drill":
             current_drill_word = _get_current_drill_word(session)
             if current_drill_word:
@@ -688,21 +689,26 @@ async def score_practice_audio(
                     drill_attempts[current_drill_word] = int(drill_attempts.get(current_drill_word, 0) or 0) + 1
                 else:
                     drill_attempts.pop(current_drill_word, None)
+                for ws in word_scores:
+                    if clean_word(ws.word) == normalized_drill_word:
+                        accuracy_ok = ws.accuracy >= 80
+                        phoneme_ok = ws.phoneme_match_ratio is None or ws.phoneme_match_ratio >= 0.6
+                        drill_word_passed = accuracy_ok and phoneme_ok
+                        break
 
         await asyncio.to_thread(_record_practice_metrics_sync, user_id, expected, int(overall_score), score_map, error_types)
 
         target_words = current_content.get("target_words", []) or []
-        target_words_passed = True
         is_drill_mode = session.get("mode") == "word_drill"
-        if target_words:
+        target_words_passed = True
+        if is_drill_mode:
+            target_words_passed = drill_word_passed
+        elif target_words:
             word_score_map = {ws.word.lower().strip(".,!?"): ws for ws in word_scores}
             for target in target_words:
                 for sub_word in target.split():
                     ws = word_score_map.get(sub_word.lower().strip(".,!?"))
                     if ws is None or ws.accuracy < 75:
-                        target_words_passed = False
-                        break
-                    if is_drill_mode and ws.phoneme_match_ratio is not None and ws.phoneme_match_ratio < 0.6:
                         target_words_passed = False
                         break
                 if not target_words_passed:
@@ -716,7 +722,26 @@ async def score_practice_audio(
         )
 
         session.setdefault("scores", []).append(int(overall_score))
-        if overall_score >= 80 and target_words_passed and new_consec >= 2:
+        if is_drill_mode and drill_word_passed:
+            drill_words = list(session.get("drill_words") or [])
+            new_idx = int(session.get("drill_index") or 0) + 1
+            if new_idx >= len(drill_words):
+                session["mode"] = "curriculum_practice"
+                session["drill_words"] = []
+                session["drill_index"] = 0
+                session["drill_attempts"] = {}
+                session["fail_count"] = 0
+                next_action = NextActionHint(action="pass", message="Drill complete! Quay lại câu gốc.")
+            else:
+                session["drill_index"] = new_idx
+                session.setdefault("drill_attempts", {}).pop(drill_words[new_idx], None)
+                session["fail_count"] = 0
+                next_action = NextActionHint(
+                    action="retry",
+                    message=f"Tuyệt! Tiếp theo: '{drill_words[new_idx]}'",
+                    focus_words=[drill_words[new_idx]],
+                )
+        elif overall_score >= 80 and target_words_passed and new_consec >= 2:
             session.setdefault("session_stats", {}).setdefault("passed_first_try", 0)
             if int(session.get("fail_count") or 0) == 0:
                 session["session_stats"]["passed_first_try"] += 1

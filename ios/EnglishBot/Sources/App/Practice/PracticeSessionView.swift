@@ -20,8 +20,10 @@ public struct PracticeSessionView: View {
                 SentencePracticeView(viewModel: viewModel, audioRecorder: audioRecorder, audioPlayer: audioPlayer)
             }
         }
-        .padding(Spacing.lg)
-        .background(Color.BotTheme.backgroundMain)
+        .padding(.horizontal, Spacing.lg)
+        .padding(.top, Spacing.lg)
+        .padding(.bottom, 100)
+        .background(Color.BotTheme.backgroundMain.ignoresSafeArea())
         .onChange(of: viewModel.currentSentence) { _ in
             audioPlayer.clearCache()
         }
@@ -104,7 +106,6 @@ private struct SentencePracticeView: View {
             }
         }
         .padding()
-        .padding(.top, 50)
     }
 
     private var practiceContentView: some View {
@@ -179,7 +180,6 @@ private struct SentencePracticeView: View {
             actionButton
                 .padding(.top, Spacing.md)
         }
-        .padding(.top, 50)
     }
 
     private var actionButton: some View {
