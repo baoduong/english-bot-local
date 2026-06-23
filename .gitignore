@@ -10,3 +10,10 @@ __pycache__/
 ios/EnglishBot/.build/
 .build/
 venv/
+
+# QA generated artifacts (do not commit)
+.coverage
+coverage.xml
+htmlcov/
+.hypothesis/
+.pytest_cache/
