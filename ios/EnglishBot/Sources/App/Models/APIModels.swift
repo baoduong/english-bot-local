@@ -140,6 +140,10 @@ public struct CurriculumSummary: Codable, Identifiable {
     public let goalTitle: String
     public let goalDescription: String
     public let currentPhaseNumber: Int
+    public let userId: String?
+    public let interfaceLanguage: String?
+    public let createdAt: String?
+    public let completedAt: String?
     
     public var id: Int { curriculumId }
     
@@ -149,6 +153,10 @@ public struct CurriculumSummary: Codable, Identifiable {
         case goalTitle = "goal_title"
         case goalDescription = "goal_description"
         case currentPhaseNumber = "current_phase_number"
+        case userId = "user_id"
+        case interfaceLanguage = "interface_language"
+        case createdAt = "created_at"
+        case completedAt = "completed_at"
     }
 }
 
@@ -164,6 +172,9 @@ public struct CurriculumPhase: Codable, Identifiable {
     public let theme: String
     public let status: String
     public let milestones: [Milestone]?
+    public let vocabulary: [String]?
+    public let progress: PhaseProgress?
+    public let regenerationCount: Int?
     
     public var id: Int { phaseId }
     
@@ -173,6 +184,9 @@ public struct CurriculumPhase: Codable, Identifiable {
         case theme
         case status
         case milestones
+        case vocabulary
+        case progress
+        case regenerationCount = "regeneration_count"
     }
     
     public init(from decoder: Decoder) throws {
@@ -182,6 +196,9 @@ public struct CurriculumPhase: Codable, Identifiable {
         theme = try c.decode(String.self, forKey: .theme)
         status = try c.decode(String.self, forKey: .status)
         milestones = try c.decodeIfPresent([Milestone].self, forKey: .milestones)
+        vocabulary = try c.decodeIfPresent([String].self, forKey: .vocabulary)
+        progress = try c.decodeIfPresent(PhaseProgress.self, forKey: .progress)
+        regenerationCount = try c.decodeIfPresent(Int.self, forKey: .regenerationCount)
     }
 }
 
@@ -216,6 +233,7 @@ public struct OnboardingConfirmResponse: Codable {
     public let phase: CurriculumPhase?
     public let firstPracticeItem: PracticeContentItem?
     public let message: String?
+    public let onboardingHistoryCleared: Bool?
     
     enum CodingKeys: String, CodingKey {
         case status
@@ -224,6 +242,7 @@ public struct OnboardingConfirmResponse: Codable {
         case phase
         case firstPracticeItem = "first_practice_item"
         case message
+        case onboardingHistoryCleared = "onboarding_history_cleared"
     }
 }
 

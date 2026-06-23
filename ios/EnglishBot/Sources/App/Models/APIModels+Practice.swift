@@ -95,13 +95,14 @@ public struct SampleAudio: Codable {
     public let contentType: String
     public let durationMs: Int
     public let url: String
-    // expiresAt is omitted for simplicity in App
+    public let expiresAt: String?
     
     enum CodingKeys: String, CodingKey {
         case audioId = "audio_id"
         case contentType = "content_type"
         case durationMs = "duration_ms"
         case url
+        case expiresAt = "expires_at"
     }
 }
 
@@ -451,7 +452,7 @@ public extension UserProfile {
 
 public extension CurriculumSummary {
     static func mock(curriculumId: Int, status: String, goalTitle: String, goalDescription: String, currentPhaseNumber: Int) -> CurriculumSummary {
-        return CurriculumSummary(curriculumId: curriculumId, status: status, goalTitle: goalTitle, goalDescription: goalDescription, currentPhaseNumber: currentPhaseNumber)
+        return CurriculumSummary(curriculumId: curriculumId, status: status, goalTitle: goalTitle, goalDescription: goalDescription, currentPhaseNumber: currentPhaseNumber, userId: nil, interfaceLanguage: nil, createdAt: nil, completedAt: nil)
     }
 }
 
