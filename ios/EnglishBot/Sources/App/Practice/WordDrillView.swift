@@ -36,6 +36,7 @@ public struct WordDrillView: View {
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
+            .padding(.top, 50)
             
             Spacer()
             

@@ -104,6 +104,7 @@ private struct SentencePracticeView: View {
             }
         }
         .padding()
+        .padding(.top, 50)
     }
 
     private var practiceContentView: some View {
@@ -178,6 +179,7 @@ private struct SentencePracticeView: View {
             actionButton
                 .padding(.top, Spacing.md)
         }
+        .padding(.top, 50)
     }
 
     private var actionButton: some View {
