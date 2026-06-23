@@ -1,0 +1,35 @@
+{
+  "phase_number": 1,
+  "theme": "Daily standup updates",
+  "vocabulary": [
+    {
+      "word": "progress",
+      "ipa": "/ˈprɑː.ɡres/",
+      "vietnamese_gloss": "tiến độ",
+      "example_sentence": "I shared my progress during the standup."
+    },
+    {
+      "word": "blocker",
+      "ipa": "/ˈblɑː.kɚ/",
+      "vietnamese_gloss": "vướng mắc",
+      "example_sentence": "A blocker slowed down the deployment yesterday."
+    },
+    {
+      "word": "timeline",
+      "ipa": "/ˈtaɪm.laɪn/",
+      "vietnamese_gloss": "mốc thời gian",
+      "example_sentence": "The team reviewed the project timeline this morning."
+    }
+  ],
+  "milestones": [
+    {
+      "description": "Phát âm rõ các từ chính khi cập nhật tiến độ hằng ngày.",
+      "criteria": "Đọc đúng ít nhất 80% từ vựng trọng tâm trong 3 câu luyện tập liên tiếp."
+    },
+    {
+      "description": "Giữ nhịp nói tự nhiên khi mô tả vướng mắc và kế hoạch.",
+      "criteria": "Hoàn thành tối thiểu 10 câu với điểm trung bình từ 70 trở lên."
+    }
+  ],
+  "sentence_count_target": 12
+}

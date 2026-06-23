@@ -642,7 +642,12 @@ async def score_practice_audio(
     if suffix != ".m4a":
         raise _error(400, "INVALID_AUDIO", "Only .m4a uploads are supported.")
 
-    resolved_content_id = int(content_id) if content_id else None
+    resolved_content_id = None
+    if content_id is not None:
+        try:
+            resolved_content_id = int(content_id)
+        except (ValueError, TypeError):
+            raise _error(400, "INVALID_CONTENT_ID", f"content_id must be numeric, got: {content_id}")
     lock = await get_user_lock(user_id)
     async with lock:
         session = await asyncio.to_thread(_load_session_sync, user_id)
@@ -728,12 +733,15 @@ async def score_practice_audio(
             if is_drill_mode:
                 target_words_passed = drill_word_passed
 
-            new_consec = await asyncio.to_thread(
-                record_phase_content_attempt,
-                int(session["content_id"]),
-                int(overall_score),
-                target_words_passed,
-            )
+            if session.get("mode") != "word_drill" and session.get("content_id") is not None:
+                new_consec = await asyncio.to_thread(
+                    record_phase_content_attempt,
+                    int(session["content_id"]),
+                    int(overall_score),
+                    target_words_passed,
+                )
+            else:
+                new_consec = 0
 
             session.setdefault("scores", []).append(int(overall_score))
             if is_drill_mode and drill_word_passed:

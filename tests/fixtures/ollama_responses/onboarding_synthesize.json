@@ -1,0 +1,11 @@
+{
+  "status": "synthesize",
+  "goal_title": "Pronunciation for team meetings",
+  "goal_description": "Người học muốn phát âm rõ ràng hơn khi cập nhật tiến độ, nêu khó khăn và trao đổi trong các buổi họp nhóm bằng tiếng Anh.",
+  "suggested_phase_count": 4,
+  "key_themes": [
+    "daily standups",
+    "code reviews",
+    "planning meetings"
+  ]
+}

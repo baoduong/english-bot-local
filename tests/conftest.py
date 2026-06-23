@@ -92,3 +92,67 @@ async def client_fixture(app: FastAPI, clean_db: str) -> AsyncGenerator[AsyncCli
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as async_client:
         yield async_client
+
+
+@pytest.fixture
+def mock_whisper(monkeypatch: pytest.MonkeyPatch):
+    from tests.mocks.mock_engines import MockWhisper
+
+    mock = MockWhisper()
+    monkeypatch.setattr("engines.whisper.whisper_model", mock)
+    return mock
+
+
+@pytest.fixture
+def mock_azure(monkeypatch: pytest.MonkeyPatch):
+    from tests.mocks.mock_engines import MockAzureScorer
+
+    mock = MockAzureScorer()
+    monkeypatch.setattr("engines.azure.analyze_with_azure", mock.analyze)
+    monkeypatch.setattr("analysis.pronunciation.analyze_with_azure", mock.analyze)
+    return mock
+
+
+@pytest.fixture
+def mock_wav2vec2(monkeypatch: pytest.MonkeyPatch):
+    from tests.mocks.mock_engines import MockPhonemeRecognizer
+
+    mock = MockPhonemeRecognizer()
+    monkeypatch.setattr("engines.phoneme_recognizer.get_phoneme_recognizer", lambda: mock)
+    return mock
+
+
+@pytest.fixture
+def mock_ollama(monkeypatch: pytest.MonkeyPatch):
+    from tests.mocks.mock_ollama import MockOllamaClient
+
+    mock = MockOllamaClient(
+        scenario_dir=Path("tests/fixtures/ollama_responses")
+    )
+    monkeypatch.setattr("engines.ollama_client.OllamaClient", lambda *a, **kw: mock)
+
+    try:
+        import engines.onboarding_chat as onboarding_chat
+
+        if hasattr(onboarding_chat, "ollama_client"):
+            monkeypatch.setattr(onboarding_chat, "ollama_client", mock)
+    except ImportError:
+        pass
+
+    try:
+        import engines.curriculum_generator as curriculum_generator
+
+        if hasattr(curriculum_generator, "ollama_client"):
+            monkeypatch.setattr(curriculum_generator, "ollama_client", mock)
+    except ImportError:
+        pass
+
+    try:
+        import analysis.phase_engine as phase_engine
+
+        if hasattr(phase_engine, "ollama_client"):
+            monkeypatch.setattr(phase_engine, "ollama_client", mock)
+    except ImportError:
+        pass
+
+    return mock
