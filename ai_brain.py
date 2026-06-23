@@ -1,8 +1,5 @@
 """Backward-compatible wrapper — new code should import from analysis/ and engines/ packages directly."""
 
-from analysis.phonemes import clean_word, phoneme_similarity
-from analysis.errors import classify_error, ERROR_TYPE_LABELS
-from analysis.pronunciation import analyze_audio as analyze_audio_with_whisper, analyze_single_word
 from engines.tts import generate_sample_audio
 from engines.ollama_client import OllamaClient
 

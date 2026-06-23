@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from httpx import AsyncClient
 
-from db.curriculum import activate_phase, add_phase_content, create_curriculum, create_phase, get_active_curriculum, get_active_phase
+from db.curriculum import activate_phase, add_phase_content, create_curriculum, create_phase, get_active_curriculum
 from db.sessions import save_session
 from db.users import get_or_create_user
 

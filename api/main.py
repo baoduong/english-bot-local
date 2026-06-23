@@ -30,6 +30,19 @@ _whisper_loaded: bool = False
 _start_time: float = time.monotonic()
 
 
+async def _cleanup_old_attempts() -> None:
+    while True:
+        await asyncio.sleep(300)
+        conn = get_db_connection()
+        try:
+            conn.execute(
+                "DELETE FROM practice_audio_attempts WHERE created_at < datetime('now', '-1 hour')"
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
 # ─── Lifespan ─────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -45,6 +58,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     global _whisper_loaded, _start_time
     _start_time = time.monotonic()
+    cleanup_task: asyncio.Task[None] | None = None
 
     # 1. DB init — ensure all tables exist
     try:
@@ -92,10 +106,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         print(f"⚠️  Prosody analyzer load failed: {exc}")
 
+    cleanup_task = asyncio.create_task(_cleanup_old_attempts())
+
     yield  # ── application runs ──────────────────────────────────────────────
 
     # Shutdown cleanup
     try:
+        if cleanup_task is not None:
+            cleanup_task.cancel()
+            try:
+                await cleanup_task
+            except asyncio.CancelledError:
+                pass
         if _whisper_loaded:
             logger.info("[shutdown] Whisper model released.")
     except Exception as exc:

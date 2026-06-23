@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field, UUID4
+from pydantic import BaseModel, Field
 
 
 # ─── Shared / primitive ───────────────────────────────────────────────────────
@@ -362,6 +362,21 @@ class CoachingHint(BaseModel):
     difficulty: int = Field(ge=1, le=10)
     attempt_count: int = Field(ge=0)
     max_attempts: int = Field(ge=1)
+
+
+class CoachingPendingResponse(BaseModel):
+    coaching: CoachingHint | None = None
+    ack_token: str | None = None
+    content_id: int | None = None
+
+
+class CoachingAckRequest(BaseModel):
+    user_id: str
+    ack_token: str
+
+
+class CoachingAckResponse(BaseModel):
+    cleared: bool
 
 
 class PracticeAudioResponse(BaseModel):

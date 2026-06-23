@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import subprocess
 import tempfile
 from contextlib import suppress
@@ -10,6 +12,7 @@ from typing import Any, Literal, cast
 from uuid import uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import Query
 from fastapi.responses import FileResponse
 
 from analysis.coaching_types import validate_coaching_response
@@ -33,7 +36,10 @@ from engines.ollama_client import OllamaClient
 from engines.prompts import adaptive_coaching_prompt
 from engines.prosody_analyzer import get_prosody_analyzer
 from api.models import (
+    CoachingAckRequest,
+    CoachingAckResponse,
     DrillInfo,
+    CoachingPendingResponse,
     NextActionHint,
     PhaseProgress,
     PracticeAudioResponse,
@@ -73,6 +79,9 @@ router = APIRouter(prefix="/practice", tags=["Practice"])
 
 _SAMPLE_TTL = timedelta(minutes=10)
 _OLLAMA_CLIENT = OllamaClient()
+_COACHING_TIMEOUT_SECONDS = 12
+_COACHING_MAX_RETRIES = 1
+_PENDING_COACHING_TTL = timedelta(minutes=5)
 
 
 def _error(status_code: int, code: str, message: str, detail: Any | None = None) -> HTTPException:
@@ -445,6 +454,77 @@ def _get_recent_scores_sync(user_id: str, limit: int = 5) -> list[int]:
         conn.close()
 
 
+def _get_cached_audio_attempt_sync(audio_hash: str, user_id: str) -> PracticeAudioResponse | None:
+    conn = get_db_connection()
+    try:
+        row = conn.execute(
+            "SELECT result_json FROM practice_audio_attempts WHERE audio_hash = ? AND user_id = ?",
+            (audio_hash, user_id),
+        ).fetchone()
+        if not row:
+            return None
+        return PracticeAudioResponse.model_validate(json.loads(row["result_json"]))
+    finally:
+        conn.close()
+
+
+def _cache_audio_attempt_sync(
+    audio_hash: str,
+    user_id: str,
+    content_id: int | None,
+    score: int,
+    response: PracticeAudioResponse,
+) -> None:
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO practice_audio_attempts (
+                audio_hash,
+                user_id,
+                content_id,
+                score,
+                result_json
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (audio_hash, user_id, content_id, score, json.dumps(response.model_dump(mode="json"))),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _delete_cached_audio_attempt_sync(audio_hash: str, user_id: str) -> None:
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            "DELETE FROM practice_audio_attempts WHERE audio_hash = ? AND user_id = ?",
+            (audio_hash, user_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _is_cacheable_audio_attempt(session: dict[str, Any], overall_score: int, target_words_passed: bool) -> bool:
+    return session.get("mode") != "word_drill" and not (int(overall_score) < 80 and target_words_passed)
+
+
+def _should_preserve_sentence_mode_for_coaching(
+    session: dict[str, Any],
+    overall_score: int,
+    target_words_passed: bool,
+    weak_words: list[str],
+) -> bool:
+    return (
+        session.get("mode") != "word_drill"
+        and int(session.get("fail_count") or 0) + 1 >= 2
+        and bool(weak_words)
+        and int(overall_score) < 80
+        and target_words_passed
+    )
+
+
 def _get_user_struggling_phonemes_sync(user_id: str, limit: int = 5) -> list[str]:
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -492,7 +572,7 @@ def _maybe_generate_coaching_sync(
 ) -> CoachingHint | None:
     print(f"[coaching] check: score={overall_score} target_passed={target_words_passed} mode={session.get('mode')}")
     if overall_score >= 80 or target_words_passed:
-        print(f"[coaching] skip: passed quality bar")
+        print("[coaching] skip: passed quality bar")
         return None
 
     sentence_context = current_content.get("sentence")
@@ -541,6 +621,8 @@ def _maybe_generate_coaching_sync(
                 sentence_context=sentence_context,
             ),
             validate_coaching_response,
+            timeout_seconds=_COACHING_TIMEOUT_SECONDS,
+            max_retries=_COACHING_MAX_RETRIES,
         )
     except Exception as exc:
         print(f"⚠️ Adaptive coaching failed: {exc}")
@@ -551,6 +633,55 @@ def _maybe_generate_coaching_sync(
     coaching_payload["max_attempts"] = max_attempts
     print(f"[coaching] FIRED: action={coaching_payload.get('action')} word={prompt_word}")
     return CoachingHint(**coaching_payload)
+
+
+def _is_stale_pending_coaching(pending: dict[str, Any]) -> bool:
+    created_at = _parse_started_at(pending.get("created_at"))
+    if created_at is None:
+        return True
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - created_at > _PENDING_COACHING_TTL
+
+
+async def _run_coaching_background(
+    user_id: str,
+    session_snapshot: dict[str, Any],
+    current_content: dict[str, Any],
+    score: int,
+    target_passed: bool,
+    word_scores: list[WordScore],
+) -> None:
+    try:
+        coaching = await asyncio.to_thread(
+            _maybe_generate_coaching_sync,
+            user_id=user_id,
+            session=session_snapshot,
+            current_content=current_content,
+            overall_score=score,
+            target_words_passed=target_passed,
+            word_scores=word_scores,
+        )
+        if coaching is None:
+            return
+
+        ack_token = uuid4().hex
+        content_id = int(session_snapshot.get("content_id") or current_content.get("id") or 0)
+
+        lock = await get_user_lock(user_id)
+        async with lock:
+            session = await asyncio.to_thread(_load_session_sync, user_id)
+            if session is None:
+                return
+            session["pending_coaching"] = {
+                "coaching": coaching.model_dump(mode="json"),
+                "ack_token": ack_token,
+                "content_id": content_id,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            await asyncio.to_thread(_save_session_sync, user_id, session)
+    except Exception as exc:
+        print(f"[coaching] background error for {user_id}: {exc}")
 
 
 @router.post("/session/start", response_model=PracticeSessionStateResponse)
@@ -576,6 +707,42 @@ async def get_practice_session_state(user_id: str) -> PracticeSessionStateRespon
     if not session or session.get("mode") not in {"curriculum_practice", "word_drill"}:
         raise _error(404, "SESSION_NOT_FOUND", "No active practice session found.")
     return await asyncio.to_thread(_build_state_response_sync, user_id, session)
+
+
+@router.get("/coaching/pending", response_model=CoachingPendingResponse)
+async def get_pending_coaching(user_id: str = Query(...)) -> CoachingPendingResponse:
+    session = await asyncio.to_thread(_load_session_sync, user_id)
+    if session is None:
+        raise _error(404, "USER_NOT_FOUND", "No session found")
+
+    pending = session.get("pending_coaching")
+    if isinstance(pending, dict) and _is_stale_pending_coaching(pending):
+        return CoachingPendingResponse(coaching=None, ack_token=None, content_id=None)
+
+    if isinstance(pending, dict):
+        return CoachingPendingResponse(
+            coaching=CoachingHint(**pending["coaching"]),
+            ack_token=pending.get("ack_token"),
+            content_id=pending.get("content_id"),
+        )
+
+    return CoachingPendingResponse(coaching=None, ack_token=None, content_id=None)
+
+
+@router.post("/coaching/ack", response_model=CoachingAckResponse)
+async def ack_coaching(body: CoachingAckRequest) -> CoachingAckResponse:
+    lock = await get_user_lock(body.user_id)
+    async with lock:
+        session = await asyncio.to_thread(_load_session_sync, body.user_id)
+        if session is None:
+            raise _error(404, "USER_NOT_FOUND", "No session found")
+
+        pending = session.get("pending_coaching")
+        if isinstance(pending, dict) and pending.get("ack_token") == body.ack_token:
+            del session["pending_coaching"]
+            await asyncio.to_thread(_save_session_sync, body.user_id, session)
+            return CoachingAckResponse(cleared=True)
+        return CoachingAckResponse(cleared=False)
 
 
 @router.post("/session/skip", response_model=PracticeSkipResponse)
@@ -674,6 +841,13 @@ async def score_practice_audio(
         payload = await audio_file.read()
         if not payload:
             raise _error(400, "INVALID_AUDIO", "Uploaded audio file is empty.")
+        audio_hash = hashlib.sha256(payload).hexdigest()
+
+        async with lock:
+            cached_response = await asyncio.to_thread(_get_cached_audio_attempt_sync, audio_hash, user_id)
+            if cached_response is not None:
+                return cached_response
+
         await asyncio.to_thread(source_path.write_bytes, payload)
         await asyncio.to_thread(_transcode_to_wav_sync, str(source_path), str(wav_path))
 
@@ -818,16 +992,23 @@ async def score_practice_audio(
                 elif session["fail_count"] >= 2 and weak_words:
                     session.setdefault("session_stats", {}).setdefault("needed_drill", 0)
                     if session.get("mode") != "word_drill":
-                        session["session_stats"]["needed_drill"] += 1
-                        session["mode"] = "word_drill"
-                        session["drill_words"] = weak_words
-                        session["drill_index"] = 0
-                        session["drill_attempts"] = {}
-                        next_action = NextActionHint(
-                            action="word_drill",
-                            message="Second failed attempt. Starting word drill.",
-                            focus_words=weak_words,
-                        )
+                        if _should_preserve_sentence_mode_for_coaching(session, int(overall_score), target_words_passed, weak_words):
+                            next_action = NextActionHint(
+                                action="retry",
+                                message="Retry the same sentence.",
+                                focus_words=weak_words,
+                            )
+                        else:
+                            session["session_stats"]["needed_drill"] += 1
+                            session["mode"] = "word_drill"
+                            session["drill_words"] = weak_words
+                            session["drill_index"] = 0
+                            session["drill_attempts"] = {}
+                            next_action = NextActionHint(
+                                action="word_drill",
+                                message="Second failed attempt. Starting word drill.",
+                                focus_words=weak_words,
+                            )
                     else:
                         next_action = NextActionHint(
                             action="retry",
@@ -840,23 +1021,26 @@ async def score_practice_audio(
             progress = await asyncio.to_thread(get_phase_progress, session["current_phase_id"])
             session["phase_mastered_count"] = progress["mastered"]
             session["phase_total_content"] = progress["total"]
+            if session.get("mode") == "word_drill":
+                await asyncio.to_thread(_delete_cached_audio_attempt_sync, audio_hash, user_id)
             await asyncio.to_thread(_save_session_sync, user_id, session)
 
-        coaching = await asyncio.to_thread(
-            _maybe_generate_coaching_sync,
-            user_id=user_id,
-            session=session,
-            current_content=current_content,
-            overall_score=int(overall_score),
-            target_words_passed=target_words_passed,
-            word_scores=word_scores,
+        asyncio.create_task(
+            _run_coaching_background(
+                user_id,
+                session.copy(),
+                current_content.copy(),
+                int(overall_score),
+                target_words_passed,
+                word_scores,
+            )
         )
 
         current_item_model = _to_content_item(current_content)
         if current_item_model is None:
             raise _error(404, "CONTENT_NOT_FOUND", "Current practice item could not be resolved.")
 
-        return PracticeAudioResponse(
+        response = PracticeAudioResponse(
             scoring=ScoringResult(
                 overall_score=int(overall_score),
                 passed=overall_score >= 80,
@@ -886,8 +1070,18 @@ async def score_practice_audio(
             ),
             current_item=current_item_model,
             consecutive_passes=new_consec,
-            coaching=coaching,
+            coaching=None,
         )
+        if _is_cacheable_audio_attempt(session, int(overall_score), target_words_passed):
+            await asyncio.to_thread(
+                _cache_audio_attempt_sync,
+                audio_hash,
+                user_id,
+                current_item_model.content_id,
+                int(overall_score),
+                response,
+            )
+        return response
     finally:
         with suppress(Exception):
             if source_path.exists():

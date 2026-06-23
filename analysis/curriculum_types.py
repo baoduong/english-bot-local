@@ -1,4 +1,4 @@
-from typing import TypedDict, Optional, Union, List
+from typing import TypedDict, Optional, List
 from enum import Enum
 
 # --- Enums ---

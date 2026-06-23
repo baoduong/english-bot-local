@@ -1,6 +1,5 @@
 import discord
 import os
-import re
 import requests
 import asyncio
 import functools
@@ -14,12 +13,11 @@ from database import (get_next_sentence, update_user_progress,
                       increment_total_sessions,
                       record_word_attempts_batch,
                       record_phoneme_errors_batch, get_weak_phonemes,
-                      record_pattern_attempts_batch, get_weak_patterns)
+                      record_pattern_attempts_batch)
 from ai_brain import (analyze_audio_with_whisper, analyze_single_word, send_new_word_tutorial,
-                      generate_sample_audio, ERROR_TYPE_LABELS)
+                      generate_sample_audio)
 from analysis.patterns import extract_patterns
-from analysis.learning_memory import (get_learner_profile, get_learning_insights,
-                                      get_practice_recommendations)
+from analysis.learning_memory import (get_learner_profile, get_practice_recommendations)
 from analysis.metrics import get_learning_progress
 from engines.ollama_client import OllamaClient, OllamaUnavailableError, OllamaSchemaError
 from engines.curriculum_generator import CurriculumGenerator
@@ -332,7 +330,7 @@ async def on_ready():
     print(f"[startup] Found {total_users} users, {need_onboarding} need onboarding")
 
     print("--------------------------------------------------")
-    print(f"🤖 Bot Giáo Viên AI đã kích hoạt thành công!")
+    print("🤖 Bot Giáo Viên AI đã kích hoạt thành công!")
     print(f"🎯 Tên Bot: {client.user.name} (ID: {client.user.id})")
     print("🚀 Sẵn sàng tóm file ghi âm từ iPhone của bạn!")
     print("--------------------------------------------------")
@@ -1425,9 +1423,9 @@ async def on_message(message):
                         session["drill_done"] = False
 
                         await message.channel.send(
-                            f"🤝 Bạn đã drill từng từ rồi nhưng ghép câu vẫn khó — "
-                            f"**không sao cả**, đây là chuyện bình thường! Fluency (nói trôi chảy) cần thời gian.\n"
-                            f"Thầy cất câu này vào *Danh sách phục thù* để ôn lại sau nhé! 💪"
+                            "🤝 Bạn đã drill từng từ rồi nhưng ghép câu vẫn khó — "
+                            "**không sao cả**, đây là chuyện bình thường! Fluency (nói trôi chảy) cần thời gian.\n"
+                            "Thầy cất câu này vào *Danh sách phục thù* để ôn lại sau nhé! 💪"
                         )
 
                         if session["round"] > session["max_rounds"]:
@@ -1454,9 +1452,9 @@ async def on_message(message):
                         session["drill_done"] = False
 
                         await message.channel.send(
-                            f"🤝 **Giáo viên AI can thiệp:** Câu này có vẻ đang làm khó cơ miệng của bạn. "
-                            f"Thầy đã âm thầm cất từ này vào *'Danh sách phục thù'* để ngày mai chúng ta xử lý lại khi đầu óc thoải mái hơn. "
-                            f"Bây giờ hãy bỏ qua nó để bảo toàn năng lượng nhé!\n"
+                            "🤝 **Giáo viên AI can thiệp:** Câu này có vẻ đang làm khó cơ miệng của bạn. "
+                            "Thầy đã âm thầm cất từ này vào *'Danh sách phục thù'* để ngày mai chúng ta xử lý lại khi đầu óc thoải mái hơn. "
+                            "Bây giờ hãy bỏ qua nó để bảo toàn năng lượng nhé!\n"
                         )
 
                         if session["round"] > session["max_rounds"]:

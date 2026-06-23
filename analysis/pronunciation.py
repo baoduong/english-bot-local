@@ -22,7 +22,7 @@ def assess_difficulty(text):
     return difficulty
 import os
 
-from engines.azure import USE_AZURE, AZURE_KEY, analyze_with_azure, analyze_single_word_azure
+from engines.azure import AZURE_KEY, analyze_with_azure, analyze_single_word_azure
 from engines.whisper import analyze_with_whisper, analyze_single_word_whisper
 
 

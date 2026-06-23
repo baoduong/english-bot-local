@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timedelta
 from db.connection import get_db_connection
 from analysis.learning_memory import get_learner_profile

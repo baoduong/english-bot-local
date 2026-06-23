@@ -110,11 +110,16 @@ class OllamaClient:
         prompt: str,
         schema_validator: Callable[[dict[str, Any]], Any],
         system: str | None = None,
+        **opts: Any,
     ) -> dict[str, Any]:
         last_schema_error: Exception | None = None
         last_connection_error: Exception | None = None
+        timeout_seconds = opts.pop("timeout_seconds", None)
+        max_retries = opts.pop("max_retries", None)
+        retries = max_retries if max_retries is not None else self.max_retries
+        timeout = timeout_seconds if timeout_seconds is not None else self.timeout_seconds
 
-        for attempt in range(1, self.max_retries + 1):
+        for attempt in range(1, retries + 1):
             messages: list[dict[str, Any]] = []
             if system is not None:
                 messages.append({"role": "system", "content": system})
@@ -128,11 +133,11 @@ class OllamaClient:
             }
 
             try:
-                body = self._request_with_retries("post", self._chat_url, json=payload)
+                body = self._request_with_retries("post", self._chat_url, json=payload, timeout=timeout)
             except OllamaUnavailableError as exc:
                 last_connection_error = exc
-                if attempt < self.max_retries:
-                    print(f"[OllamaClient] Retry {attempt}/{self.max_retries}: {exc}")
+                if attempt < retries:
+                    print(f"[OllamaClient] Retry {attempt}/{retries}: {exc}")
                     self._retry_sleep(attempt)
                     continue
                 raise
@@ -145,8 +150,8 @@ class OllamaClient:
             if not isinstance(raw, str) or not raw.strip():
                 err = OllamaSchemaError(f"Ollama JSON response empty or missing. Body keys: {list(body.keys()) if isinstance(body, dict) else type(body)}")
                 last_schema_error = err
-                if attempt < self.max_retries:
-                    print(f"[OllamaClient] Retry {attempt}/{self.max_retries}: {err}")
+                if attempt < retries:
+                    print(f"[OllamaClient] Retry {attempt}/{retries}: {err}")
                     self._retry_sleep(attempt)
                     continue
                 raise err
@@ -168,19 +173,19 @@ class OllamaClient:
                 parsed = json.loads(stripped)
             except json.JSONDecodeError as exc:
                 last_schema_error = exc
-                if attempt < self.max_retries:
-                    print(f"[OllamaClient] Retry {attempt}/{self.max_retries}: {exc}")
+                if attempt < retries:
+                    print(f"[OllamaClient] Retry {attempt}/{retries}: {exc}")
                     self._retry_sleep(attempt)
                     continue
                 raise OllamaSchemaError(
-                    f"Failed to parse Ollama JSON response after {self.max_retries} retries: {exc}"
+                    f"Failed to parse Ollama JSON response after {retries} retries: {exc}"
                 ) from exc
 
             if not isinstance(parsed, dict):
                 err = OllamaSchemaError("Ollama JSON response is not an object")
                 last_schema_error = err
-                if attempt < self.max_retries:
-                    print(f"[OllamaClient] Retry {attempt}/{self.max_retries}: {err}")
+                if attempt < retries:
+                    print(f"[OllamaClient] Retry {attempt}/{retries}: {err}")
                     self._retry_sleep(attempt)
                     continue
                 raise err
@@ -190,26 +195,26 @@ class OllamaClient:
                 return parsed
             except ValueError as exc:
                 last_schema_error = exc
-                if attempt < self.max_retries:
-                    print(f"[OllamaClient] Retry {attempt}/{self.max_retries}: {exc}")
+                if attempt < retries:
+                    print(f"[OllamaClient] Retry {attempt}/{retries}: {exc}")
                     self._retry_sleep(attempt)
                     continue
                 raise OllamaSchemaError(
-                    f"Schema validation failed after {self.max_retries} retries: {exc}"
+                    f"Schema validation failed after {retries} retries: {exc}"
                 ) from exc
 
         if last_schema_error is not None:
             if isinstance(last_schema_error, OllamaSchemaError):
                 raise last_schema_error
             raise OllamaSchemaError(
-                f"Schema validation failed after {self.max_retries} retries: {last_schema_error}"
+                f"Schema validation failed after {retries} retries: {last_schema_error}"
             ) from last_schema_error
 
         if last_connection_error is not None:
             if isinstance(last_connection_error, OllamaUnavailableError):
                 raise last_connection_error
             raise OllamaUnavailableError(
-                f"Ollama unavailable after {self.max_retries} retries: {last_connection_error}"
+                f"Ollama unavailable after {retries} retries: {last_connection_error}"
             ) from last_connection_error
 
         raise OllamaUnavailableError("Ollama JSON generation failed with unknown error")
@@ -219,12 +224,14 @@ class OllamaClient:
         prompt: str,
         schema_validator: Callable[[dict[str, Any]], Any],
         system: str | None = None,
+        **opts: Any,
     ) -> dict[str, Any]:
         return await asyncio.to_thread(
             self.generate_json_sync,
             prompt,
             schema_validator,
             system,
+            **opts,
         )
 
     def is_available(self) -> bool:

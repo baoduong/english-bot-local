@@ -28,7 +28,6 @@ from db.curriculum import (
     clear_onboarding_conversation,
     create_curriculum,
     get_active_curriculum,
-    get_active_phase,
     get_onboarding_conversation,
     get_phase,
     get_phase_content,
@@ -37,7 +36,7 @@ from db.curriculum import (
 from db.sessions import delete_session, save_session
 from db.users import get_or_create_user, mark_onboarding_complete, needs_onboarding
 from engines.curriculum_generator import CurriculumGenerator
-from engines.ollama_client import OllamaSchemaError, OllamaUnavailableError
+from engines.ollama_client import OllamaSchemaError
 from engines.onboarding_chat import OnboardingChat
 
 router = APIRouter(prefix="/onboarding", tags=["Onboarding"])

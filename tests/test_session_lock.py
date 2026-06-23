@@ -6,7 +6,7 @@ import time
 import pytest
 
 from db.sessions import load_all_sessions, save_session
-from api.locks import get_user_lock, _user_locks
+from api.locks import _user_locks
 from db.users import get_or_create_user
 
 

@@ -1,6 +1,29 @@
 from db.connection import get_db_connection
 
 
+def _create_audio_attempts_table() -> None:
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS practice_audio_attempts (
+                audio_hash TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                content_id INTEGER,
+                score INTEGER,
+                result_json TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_paa_created_at ON practice_audio_attempts(created_at)"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def init_db():
     """Khởi tạo các bảng dữ liệu nếu chưa tồn tại và nạp data mẫu"""
     conn = get_db_connection()
@@ -255,3 +278,4 @@ def init_db():
 
     conn.commit()
     conn.close()
+    _create_audio_attempts_table()

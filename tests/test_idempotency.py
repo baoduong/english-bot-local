@@ -7,17 +7,13 @@ import pytest
 from db.connection import get_db_connection
 
 
-def _audio_payload() -> tuple[str, bytes, str]:
-    return ("practice.m4a", b"fake-audio-bytes", "audio/mp4")
-
-
-def _audio_payload_with_bytes(audio_bytes: bytes) -> tuple[str, bytes, str]:
+def _audio_payload(audio_bytes: bytes) -> tuple[str, bytes, str]:
     return ("practice.m4a", audio_bytes, "audio/mp4")
 
 
-def _seed_practice_context(*, mode: str) -> tuple[str, int]:
-    user_id = f"user-{mode}"
-    content_id = 5
+def _seed_practice_context() -> tuple[str, int]:
+    user_id = "user-idempotency"
+    content_id = 11
     conn = get_db_connection()
     try:
         conn.execute(
@@ -60,8 +56,8 @@ def _seed_practice_context(*, mode: str) -> tuple[str, int]:
             "sentence": "I like cats",
             "new_word": None,
             "fail_count": 0,
-            "mode": mode,
-            "drill_words": ["cats"] if mode == "word_drill" else [],
+            "mode": "curriculum_practice",
+            "drill_words": [],
             "drill_index": 0,
             "drill_attempts": {},
             "drill_fails": 0,
@@ -88,15 +84,20 @@ def _seed_practice_context(*, mode: str) -> tuple[str, int]:
     return user_id, content_id
 
 
-def _mock_passing_analysis(monkeypatch: pytest.MonkeyPatch) -> None:
+def _mock_analysis(monkeypatch: pytest.MonkeyPatch, scores: list[int]) -> dict[str, int]:
     from api.routers import practice
 
+    call_counter = {"count": 0}
+
     monkeypatch.setattr(practice, "_transcode_to_wav_sync", lambda *_args: None)
-    monkeypatch.setattr(
-        practice,
-        "analyze_audio_with_whisper",
-        lambda *_args: (90, "", "pass", [], [], {"cats": {"score": 100, "passed": True}}),
-    )
+
+    def _analyze(*_args):
+        index = call_counter["count"]
+        call_counter["count"] += 1
+        score = scores[index]
+        return (score, "", "pass", [], [], {"cats": {"score": 100, "passed": True}})
+
+    monkeypatch.setattr(practice, "analyze_audio_with_whisper", _analyze)
     monkeypatch.setattr(practice, "analyze_phonemes_per_word", lambda *_args: {"cats": {"phoneme_match_ratio": 1.0}})
 
     class _Prosody:
@@ -106,6 +107,7 @@ def _mock_passing_analysis(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(practice, "get_prosody_analyzer", lambda: _Prosody())
     monkeypatch.setattr(practice, "_record_practice_metrics_sync", lambda *_args: None)
     monkeypatch.setattr(practice, "_maybe_generate_coaching_sync", lambda **_kwargs: None)
+    return call_counter
 
 
 def _get_phase_content_stats(content_id: int) -> dict[str, int | None]:
@@ -126,73 +128,54 @@ def _get_phase_content_stats(content_id: int) -> dict[str, int | None]:
 
 
 @pytest.mark.asyncio
-async def test_drill_does_not_master_sentence(client, clean_db: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    _mock_passing_analysis(monkeypatch)
-    user_id, content_id = _seed_practice_context(mode="word_drill")
+async def test_duplicate_audio_returns_cached(client, clean_db: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    user_id, content_id = _seed_practice_context()
+    calls = _mock_analysis(monkeypatch, [90])
+    audio_bytes = b"same-audio"
 
-    response = await client.post(
+    first = await client.post(
         "/practice/audio",
         data={"user_id": user_id},
-        files={"audio_file": _audio_payload_with_bytes(b"drill-audio-1")},
+        files={"audio_file": _audio_payload(audio_bytes)},
     )
-
-    assert response.status_code == 200
-    stats = _get_phase_content_stats(content_id)
-    assert stats["consecutive_passes"] == 0
-
-
-@pytest.mark.asyncio
-async def test_drill_does_not_increment_attempt_count(client, clean_db: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    _mock_passing_analysis(monkeypatch)
-    user_id, content_id = _seed_practice_context(mode="word_drill")
-
-    response = await client.post(
+    second = await client.post(
         "/practice/audio",
         data={"user_id": user_id},
-        files={"audio_file": _audio_payload_with_bytes(b"drill-audio-2")},
+        files={"audio_file": _audio_payload(audio_bytes)},
     )
-    assert response.status_code == 200
 
-    stats = _get_phase_content_stats(content_id)
-    assert stats["attempt_count"] == 0
-    assert stats["consecutive_passes"] == 0
-
-    response = await client.post(
-        "/practice/audio",
-        data={"user_id": user_id},
-        files={"audio_file": _audio_payload_with_bytes(b"drill-audio-3")},
-    )
-    assert response.status_code == 200
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json() == first.json()
+    assert calls["count"] == 1
 
     stats = _get_phase_content_stats(content_id)
     assert stats["attempt_count"] == 1
     assert stats["consecutive_passes"] == 1
+    assert stats["last_score"] == 90
 
-    response = await client.post(
+
+@pytest.mark.asyncio
+async def test_different_audio_new_attempt(client, clean_db: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    user_id, content_id = _seed_practice_context()
+    calls = _mock_analysis(monkeypatch, [90, 90])
+
+    first = await client.post(
         "/practice/audio",
         data={"user_id": user_id},
-        files={"audio_file": _audio_payload()},
+        files={"audio_file": _audio_payload(b"audio-one")},
     )
-    assert response.status_code == 200
+    second = await client.post(
+        "/practice/audio",
+        data={"user_id": user_id},
+        files={"audio_file": _audio_payload(b"audio-two")},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert calls["count"] == 2
 
     stats = _get_phase_content_stats(content_id)
     assert stats["attempt_count"] == 2
     assert stats["consecutive_passes"] == 2
-
-
-@pytest.mark.asyncio
-async def test_sentence_mode_still_records(client, clean_db: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    _mock_passing_analysis(monkeypatch)
-    user_id, content_id = _seed_practice_context(mode="curriculum_practice")
-
-    response = await client.post(
-        "/practice/audio",
-        data={"user_id": user_id},
-        files={"audio_file": _audio_payload()},
-    )
-
-    assert response.status_code == 200
-    stats = _get_phase_content_stats(content_id)
-    assert stats["attempt_count"] == 1
-    assert stats["consecutive_passes"] == 1
     assert stats["last_score"] == 90

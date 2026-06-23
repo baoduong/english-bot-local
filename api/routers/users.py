@@ -7,7 +7,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from api.models import UserRegistrationRequest, UserRegistrationResponse
+from api.models import UserRegistrationRequest
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
