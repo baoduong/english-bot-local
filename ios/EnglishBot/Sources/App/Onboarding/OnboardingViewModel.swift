@@ -14,7 +14,7 @@ public class OnboardingViewModel: ObservableObject {
     private let wsClient: WebSocketClient
     private let userId: String
     
-    public init(userId: String, apiClient: APIClient = APIClient(), wsClient: WebSocketClient = WebSocketClient()) {
+    public init(userId: String, apiClient: APIClient = APIClient.shared, wsClient: WebSocketClient = WebSocketClient()) {
         self.userId = userId
         self.apiClient = apiClient
         self.wsClient = wsClient

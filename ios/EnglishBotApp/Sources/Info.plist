@@ -24,7 +24,15 @@
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
 	</dict>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_englishbot._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>English Bot discovers your Mac backend on Wi-Fi</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>EnglishBot needs microphone access to record your pronunciation for scoring.</string>
 	<key>UIApplicationSceneManifest</key>

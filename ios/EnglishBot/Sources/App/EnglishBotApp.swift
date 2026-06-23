@@ -22,6 +22,7 @@ public struct EnglishBotApp: View {
     @AppStorage("eb_onboardingDone") private var onboardingDone: Bool = false
     @AppStorage("eb_activeTab") private var activeTab: Int = 0
     @State private var onboardingNavigated: Bool = false
+    @State private var isShowingSettings = false
 
     public init() {}
 
@@ -40,6 +41,11 @@ public struct EnglishBotApp: View {
             onboardingDone = false
             activeTab = 0
             onboardingNavigated = false
+        }
+        .sheet(isPresented: $isShowingSettings) {
+            NavigationStack {
+                SettingsView()
+            }
         }
     }
 
@@ -127,6 +133,14 @@ public struct EnglishBotApp: View {
                     NavigationLink(value: NavigationRoute.practice) {
                         Label("Practice", systemImage: "mic.circle.fill")
                             .foregroundColor(Color.BotTheme.primary)
+                    }
+                }
+
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        isShowingSettings = true
+                    } label: {
+                        Label("Settings", systemImage: "gearshape")
                     }
                 }
             }

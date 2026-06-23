@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 public enum APIError: Error {
     case invalidURL
@@ -9,12 +10,48 @@ public enum APIError: Error {
 }
 
 public class APIClient: ObservableObject {
+    private static let baseURLDefaultsKey = "eb_apiBaseURL"
+    public static let shared = APIClient(baseURL: APIClient.resolveBaseURL())
+
     public let baseURL: URL
     private let session: URLSession
     
     public init(baseURL: URL = URL(string: "http://localhost:8000")!, session: URLSession = .shared) {
         self.baseURL = baseURL
         self.session = session
+    }
+
+    private static var defaultBaseURL: URL {
+        URL(string: "http://localhost:8000")!
+    }
+
+    private static func resolveBaseURL() -> URL {
+        if let storedValue = UserDefaults.standard.string(forKey: baseURLDefaultsKey) {
+            let trimmed = storedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let storedURL = URL(string: trimmed), !trimmed.isEmpty {
+                return storedURL
+            }
+        }
+
+        if let discoveredURL = discoverBonjourBaseURL() {
+            UserDefaults.standard.set(discoveredURL.absoluteString, forKey: baseURLDefaultsKey)
+            return discoveredURL
+        }
+
+        return defaultBaseURL
+    }
+
+    private static func discoverBonjourBaseURL() -> URL? {
+        let semaphore = DispatchSemaphore(value: 0)
+        var discoveredURL: URL?
+
+        Task.detached {
+            discoveredURL = await BonjourDiscovery().discover(timeout: 5.0)
+            semaphore.signal()
+        }
+
+        _ = semaphore.wait(timeout: .now() + 5.1)
+        return discoveredURL
     }
     
     private func decode<T: Decodable>(_ data: Data, type: T.Type) throws -> T {

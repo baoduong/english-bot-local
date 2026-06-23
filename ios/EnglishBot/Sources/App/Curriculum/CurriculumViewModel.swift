@@ -12,7 +12,7 @@ public class CurriculumViewModel: ObservableObject {
     private let apiClient: APIClient
     private let userId: String
     
-    public init(userId: String, apiClient: APIClient = APIClient()) {
+    public init(userId: String, apiClient: APIClient = APIClient.shared) {
         self.userId = userId
         self.apiClient = apiClient
     }

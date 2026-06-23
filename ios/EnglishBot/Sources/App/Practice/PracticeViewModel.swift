@@ -30,7 +30,7 @@ public class PracticeViewModel: ObservableObject {
     public let apiClient: APIClient
     private var currentContentId: Int?
 
-    public init(userId: String, apiClient: APIClient = APIClient()) {
+    public init(userId: String, apiClient: APIClient = APIClient.shared) {
         self.userId = userId
         self.apiClient = apiClient
     }

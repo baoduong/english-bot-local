@@ -11,11 +11,13 @@ from __future__ import annotations
 import logging
 import time
 import asyncio
+import socket
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from zeroconf import ServiceInfo, Zeroconf
 
 from engines.ollama_client import OllamaUnavailableError, OllamaSchemaError
 from db.connection import get_db_connection
@@ -28,6 +30,17 @@ logger = logging.getLogger(__name__)
 # ─── Startup/shutdown flags ───────────────────────────────────────────────────
 _whisper_loaded: bool = False
 _start_time: float = time.monotonic()
+
+
+def _get_lan_ip() -> str:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(("8.8.8.8", 80))
+        return sock.getsockname()[0]
+    except Exception:
+        return "127.0.0.1"
+    finally:
+        sock.close()
 
 
 async def _cleanup_old_attempts() -> None:
@@ -59,6 +72,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     global _whisper_loaded, _start_time
     _start_time = time.monotonic()
     cleanup_task: asyncio.Task[None] | None = None
+    zc: Zeroconf | None = None
+    service_info: ServiceInfo | None = None
 
     # 1. DB init — ensure all tables exist
     try:
@@ -108,6 +123,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     cleanup_task = asyncio.create_task(_cleanup_old_attempts())
 
+    try:
+        lan_ip = _get_lan_ip()
+        zc = Zeroconf()
+        service_info = ServiceInfo(
+            "_englishbot._tcp.local.",
+            "EnglishBot._englishbot._tcp.local.",
+            addresses=[socket.inet_aton(lan_ip)],
+            port=8000,
+            properties={"version": "1.0"},
+        )
+        await asyncio.to_thread(zc.register_service, service_info)
+        print(f"📡 Bonjour: advertising on {lan_ip}:8000")
+    except Exception as exc:
+        logger.warning("[startup] Bonjour registration failed: %s", exc)
+
     yield  # ── application runs ──────────────────────────────────────────────
 
     # Shutdown cleanup
@@ -122,6 +152,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("[shutdown] Whisper model released.")
     except Exception as exc:
         logger.warning("[shutdown] Whisper cleanup error: %s", exc)
+
+    try:
+        if zc is not None and service_info is not None:
+            await asyncio.to_thread(zc.unregister_service, service_info)
+        if zc is not None:
+            await asyncio.to_thread(zc.close)
+    except Exception as exc:
+        logger.warning("[shutdown] Bonjour cleanup error: %s", exc)
 
     logger.info("[shutdown] Gateway stopped.")
 

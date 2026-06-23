@@ -17,6 +17,9 @@ let package = Package(
             name: "App",
             targets: ["App"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/nalexn/ViewInspector", .upToNextMajor(from: "0.10.0")),
+    ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
@@ -28,6 +31,14 @@ let package = Package(
             name: "App",
             dependencies: ["DesignSystem"],
             path: "Sources/App"
+        ),
+        .testTarget(
+            name: "AppTests",
+            dependencies: [
+                "App",
+                .product(name: "ViewInspector", package: "ViewInspector"),
+            ],
+            path: "Tests/AppTests"
         ),
     ]
 )

@@ -10,7 +10,7 @@ public class ProgressViewModel: ObservableObject {
     private let userId: String
     private let apiClient: APIClient
 
-    public init(userId: String, apiClient: APIClient = APIClient()) {
+    public init(userId: String, apiClient: APIClient = APIClient.shared) {
         self.userId = userId
         self.apiClient = apiClient
     }
