@@ -316,53 +316,43 @@ def get_next_practice_sentence(phase_id, exclude_content_id=None) -> dict | None
 def record_phase_content_attempt(content_id, score, target_words_passed: bool = True) -> int:
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT consecutive_passes, mastered_at FROM phase_content WHERE id = ?",
-        (content_id,),
-    )
-    row = cursor.fetchone()
-    if not row:
-        conn.close()
-        return 0
+    high_quality = int(score) >= 80 and target_words_passed
 
-    current_consecutive = int(row["consecutive_passes"] or 0)
-    already_mastered = row["mastered_at"] is not None
-    high_quality = score >= 80 and target_words_passed
-
-    if high_quality:
-        new_consecutive = current_consecutive + 1
-        if new_consecutive >= 2 and not already_mastered:
-            cursor.execute(
-                """UPDATE phase_content
-                   SET attempt_count = attempt_count + 1,
-                       last_score = ?,
-                       consecutive_passes = ?,
-                       mastered_at = datetime('now')
-                   WHERE id = ?""",
-                (int(score), new_consecutive, content_id)
-            )
-        else:
-            cursor.execute(
-                """UPDATE phase_content
-                   SET attempt_count = attempt_count + 1,
-                       last_score = ?,
-                       consecutive_passes = ?
-                   WHERE id = ?""",
-                (int(score), new_consecutive, content_id)
-            )
-    else:
-        new_consecutive = 0
+    try:
+        cursor.execute("BEGIN IMMEDIATE")
         cursor.execute(
             """UPDATE phase_content
                SET attempt_count = attempt_count + 1,
                    last_score = ?,
-                   consecutive_passes = ?
+                   consecutive_passes = CASE
+                       WHEN ? THEN consecutive_passes + 1
+                       ELSE 0
+                   END,
+                   mastered_at = CASE
+                       WHEN ? AND mastered_at IS NULL AND consecutive_passes + 1 >= 2
+                       THEN datetime('now')
+                       ELSE mastered_at
+                   END
                WHERE id = ?""",
-            (int(score), new_consecutive, content_id)
+            (int(score), high_quality, high_quality, content_id)
         )
-    conn.commit()
-    conn.close()
-    return new_consecutive
+
+        if cursor.rowcount == 0:
+            cursor.execute("COMMIT")
+            return 0
+
+        cursor.execute(
+            "SELECT consecutive_passes FROM phase_content WHERE id = ?",
+            (content_id,)
+        )
+        row = cursor.fetchone()
+        cursor.execute("COMMIT")
+        return int(row["consecutive_passes"] or 0) if row else 0
+    except Exception:
+        cursor.execute("ROLLBACK")
+        raise
+    finally:
+        conn.close()
 
 
 def get_consecutive_passes(content_id) -> int:

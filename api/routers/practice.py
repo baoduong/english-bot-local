@@ -22,6 +22,7 @@ from analysis.errors import (
     get_target_ipa,
 )
 from analysis.phonemes import clean_word, phoneme_similarity
+from api.locks import get_user_lock
 from api.models import CoachingHint
 from engines.phoneme_alignment import analyze_phonemes_per_word
 from engines.difficulty_analyzer import compute_max_attempts, compute_word_difficulty
@@ -569,28 +570,30 @@ async def get_practice_session_state(user_id: str) -> PracticeSessionStateRespon
 @router.post("/session/skip", response_model=PracticeSkipResponse)
 async def skip_practice_item(body: PracticeSessionActionRequest) -> PracticeSkipResponse:
     await asyncio.to_thread(_require_user_sync, body.user_id)
-    session = await asyncio.to_thread(_load_session_sync, body.user_id)
-    if not session or session.get("mode") not in {"curriculum_practice", "word_drill"}:
-        raise _error(404, "SESSION_NOT_FOUND", "No active practice session found.")
+    lock = await get_user_lock(body.user_id)
+    async with lock:
+        session = await asyncio.to_thread(_load_session_sync, body.user_id)
+        if not session or session.get("mode") not in {"curriculum_practice", "word_drill"}:
+            raise _error(404, "SESSION_NOT_FOUND", "No active practice session found.")
 
-    session.setdefault("session_stats", {}).setdefault("skipped", 0)
-    session["session_stats"]["skipped"] += 1
+        session.setdefault("session_stats", {}).setdefault("skipped", 0)
+        session["session_stats"]["skipped"] += 1
 
-    if session.get("mode") == "word_drill" and session.get("drill_words"):
-        session["drill_index"] = min(int(session.get("drill_index") or 0) + 1, len(session["drill_words"]))
-        _reset_next_drill_attempt_sync(session)
-        if session["drill_index"] >= len(session["drill_words"]):
-            session["mode"] = "curriculum_practice"
-            session["drill_words"] = []
-            session["drill_index"] = 0
-            session["drill_attempts"] = {}
-            session["drill_done"] = True
-    else:
-        advanced = await asyncio.to_thread(_advance_to_next_content_sync, session)
-        if not advanced:
-            raise _error(404, "NO_NEXT_CONTENT", "No next practice item available.")
+        if session.get("mode") == "word_drill" and session.get("drill_words"):
+            session["drill_index"] = min(int(session.get("drill_index") or 0) + 1, len(session["drill_words"]))
+            _reset_next_drill_attempt_sync(session)
+            if session["drill_index"] >= len(session["drill_words"]):
+                session["mode"] = "curriculum_practice"
+                session["drill_words"] = []
+                session["drill_index"] = 0
+                session["drill_attempts"] = {}
+                session["drill_done"] = True
+        else:
+            advanced = await asyncio.to_thread(_advance_to_next_content_sync, session)
+            if not advanced:
+                raise _error(404, "NO_NEXT_CONTENT", "No next practice item available.")
 
-    await asyncio.to_thread(_save_session_sync, body.user_id, session)
+        await asyncio.to_thread(_save_session_sync, body.user_id, session)
     next_state = await asyncio.to_thread(_build_state_response_sync, body.user_id, session)
     return PracticeSkipResponse(action="skipped", skipped_count=int(session["session_stats"]["skipped"]), next_state=next_state)
 
@@ -598,24 +601,26 @@ async def skip_practice_item(body: PracticeSessionActionRequest) -> PracticeSkip
 @router.post("/session/stop", response_model=PracticeStopResponse)
 async def stop_practice_session(body: PracticeSessionActionRequest) -> PracticeStopResponse:
     await asyncio.to_thread(_require_user_sync, body.user_id)
-    session = await asyncio.to_thread(_load_session_sync, body.user_id)
-    if not session or session.get("mode") not in {"curriculum_practice", "word_drill"}:
-        return PracticeStopResponse(
-            action="stopped",
-            session_cleared=False,
-            summary=SessionEndSummary(total_attempts=0, passed_first_try=0, needed_drill=0, skipped=0, final_mode="none"),
-            message="No active practice session.",
-        )
+    lock = await get_user_lock(body.user_id)
+    async with lock:
+        session = await asyncio.to_thread(_load_session_sync, body.user_id)
+        if not session or session.get("mode") not in {"curriculum_practice", "word_drill"}:
+            return PracticeStopResponse(
+                action="stopped",
+                session_cleared=False,
+                summary=SessionEndSummary(total_attempts=0, passed_first_try=0, needed_drill=0, skipped=0, final_mode="none"),
+                message="No active practice session.",
+            )
 
-    stats = session.get("session_stats") or {}
-    summary = SessionEndSummary(
-        total_attempts=len(session.get("scores") or []),
-        passed_first_try=int(stats.get("passed_first_try") or 0),
-        needed_drill=int(stats.get("needed_drill") or 0),
-        skipped=int(stats.get("skipped") or 0),
-        final_mode=session.get("mode", "curriculum_practice"),
-    )
-    await asyncio.to_thread(delete_session, body.user_id)
+        stats = session.get("session_stats") or {}
+        summary = SessionEndSummary(
+            total_attempts=len(session.get("scores") or []),
+            passed_first_try=int(stats.get("passed_first_try") or 0),
+            needed_drill=int(stats.get("needed_drill") or 0),
+            skipped=int(stats.get("skipped") or 0),
+            final_mode=session.get("mode", "curriculum_practice"),
+        )
+        await asyncio.to_thread(delete_session, body.user_id)
     return PracticeStopResponse(
         action="stopped",
         session_cleared=True,
@@ -632,16 +637,18 @@ async def score_practice_audio(
     expected_text: str | None = Form(None),
 ) -> PracticeAudioResponse:
     await asyncio.to_thread(_require_user_sync, user_id)
-    session = await asyncio.to_thread(_load_session_sync, user_id)
-    if not session or session.get("mode") not in {"curriculum_practice", "word_drill"}:
-        raise _error(404, "SESSION_NOT_FOUND", "No active practice session found.")
 
     suffix = Path(audio_file.filename or "upload").suffix.lower()
     if suffix != ".m4a":
         raise _error(400, "INVALID_AUDIO", "Only .m4a uploads are supported.")
 
     resolved_content_id = int(content_id) if content_id else None
-    expected, current_content = await asyncio.to_thread(_extract_expected_text_sync, session, resolved_content_id, expected_text)
+    lock = await get_user_lock(user_id)
+    async with lock:
+        session = await asyncio.to_thread(_load_session_sync, user_id)
+        if not session or session.get("mode") not in {"curriculum_practice", "word_drill"}:
+            raise _error(404, "SESSION_NOT_FOUND", "No active practice session found.")
+        expected, current_content = await asyncio.to_thread(_extract_expected_text_sync, session, resolved_content_id, expected_text)
 
     temp_dir = Path(tempfile.gettempdir())
     source_path = temp_dir / f"{uuid4()}_{Path(audio_file.filename or 'practice').name}"
@@ -674,36 +681,11 @@ async def score_practice_audio(
             per_word_phonemes,
         )
 
-        drill_word_passed = False
-        if session.get("mode") == "word_drill":
-            current_drill_word = _get_current_drill_word(session)
-            if current_drill_word:
-                normalized_drill_word = clean_word(current_drill_word)
-                is_drill_word_passing = False
-                for ws in word_scores:
-                    if clean_word(ws.word) == normalized_drill_word and ws.accuracy >= 80:
-                        is_drill_word_passing = True
-                        break
-                drill_attempts = session.setdefault("drill_attempts", {})
-                if not is_drill_word_passing:
-                    drill_attempts[current_drill_word] = int(drill_attempts.get(current_drill_word, 0) or 0) + 1
-                else:
-                    drill_attempts.pop(current_drill_word, None)
-                for ws in word_scores:
-                    if clean_word(ws.word) == normalized_drill_word:
-                        accuracy_ok = ws.accuracy >= 80
-                        phoneme_ok = ws.phoneme_match_ratio is None or ws.phoneme_match_ratio >= 0.6
-                        drill_word_passed = accuracy_ok and phoneme_ok
-                        break
-
         await asyncio.to_thread(_record_practice_metrics_sync, user_id, expected, int(overall_score), score_map, error_types)
 
         target_words = current_content.get("target_words", []) or []
-        is_drill_mode = session.get("mode") == "word_drill"
         target_words_passed = True
-        if is_drill_mode:
-            target_words_passed = drill_word_passed
-        elif target_words:
+        if target_words:
             word_score_map = {ws.word.lower().strip(".,!?"): ws for ws in word_scores}
             for target in target_words:
                 for sub_word in target.split():
@@ -714,77 +696,114 @@ async def score_practice_audio(
                 if not target_words_passed:
                     break
 
-        new_consec = await asyncio.to_thread(
-            record_phase_content_attempt,
-            int(session["content_id"]),
-            int(overall_score),
-            target_words_passed,
-        )
+        async with lock:
+            session = await asyncio.to_thread(_load_session_sync, user_id)
+            if not session or session.get("mode") not in {"curriculum_practice", "word_drill"}:
+                raise _error(404, "SESSION_NOT_FOUND", "No active practice session found.")
+            expected, current_content = await asyncio.to_thread(_extract_expected_text_sync, session, resolved_content_id, expected_text)
 
-        session.setdefault("scores", []).append(int(overall_score))
-        if is_drill_mode and drill_word_passed:
-            drill_words = list(session.get("drill_words") or [])
-            new_idx = int(session.get("drill_index") or 0) + 1
-            if new_idx >= len(drill_words):
-                session["mode"] = "curriculum_practice"
-                session["drill_words"] = []
-                session["drill_index"] = 0
-                session["drill_attempts"] = {}
+            drill_word_passed = False
+            is_drill_mode = session.get("mode") == "word_drill"
+            if is_drill_mode:
+                current_drill_word = _get_current_drill_word(session)
+                if current_drill_word:
+                    normalized_drill_word = clean_word(current_drill_word)
+                    is_drill_word_passing = False
+                    for ws in word_scores:
+                        if clean_word(ws.word) == normalized_drill_word and ws.accuracy >= 80:
+                            is_drill_word_passing = True
+                            break
+                    drill_attempts = session.setdefault("drill_attempts", {})
+                    if not is_drill_word_passing:
+                        drill_attempts[current_drill_word] = int(drill_attempts.get(current_drill_word, 0) or 0) + 1
+                    else:
+                        drill_attempts.pop(current_drill_word, None)
+                    for ws in word_scores:
+                        if clean_word(ws.word) == normalized_drill_word:
+                            accuracy_ok = ws.accuracy >= 80
+                            phoneme_ok = ws.phoneme_match_ratio is None or ws.phoneme_match_ratio >= 0.6
+                            drill_word_passed = accuracy_ok and phoneme_ok
+                            break
+
+            if is_drill_mode:
+                target_words_passed = drill_word_passed
+
+            new_consec = await asyncio.to_thread(
+                record_phase_content_attempt,
+                int(session["content_id"]),
+                int(overall_score),
+                target_words_passed,
+            )
+
+            session.setdefault("scores", []).append(int(overall_score))
+            if is_drill_mode and drill_word_passed:
+                drill_words = list(session.get("drill_words") or [])
+                new_idx = int(session.get("drill_index") or 0) + 1
+                if new_idx >= len(drill_words):
+                    session["mode"] = "curriculum_practice"
+                    session["drill_words"] = []
+                    session["drill_index"] = 0
+                    session["drill_attempts"] = {}
+                    session["fail_count"] = 0
+                    next_action = NextActionHint(action="pass", message="Drill complete! Quay lại câu gốc.")
+                else:
+                    session["drill_index"] = new_idx
+                    session.setdefault("drill_attempts", {}).pop(drill_words[new_idx], None)
+                    session["fail_count"] = 0
+                    next_action = NextActionHint(
+                        action="retry",
+                        message=f"Tuyệt! Tiếp theo: '{drill_words[new_idx]}'",
+                        focus_words=[drill_words[new_idx]],
+                    )
+            elif overall_score >= 80 and target_words_passed and new_consec >= 2:
+                session.setdefault("session_stats", {}).setdefault("passed_first_try", 0)
+                if int(session.get("fail_count") or 0) == 0:
+                    session["session_stats"]["passed_first_try"] += 1
                 session["fail_count"] = 0
-                next_action = NextActionHint(action="pass", message="Drill complete! Quay lại câu gốc.")
-            else:
-                session["drill_index"] = new_idx
-                session.setdefault("drill_attempts", {}).pop(drill_words[new_idx], None)
+                await asyncio.to_thread(_advance_to_next_content_sync, session)
+                next_action = NextActionHint(action="pass", message="Mastered! Continue to the next sentence.")
+            elif overall_score >= 80 and target_words_passed:
                 session["fail_count"] = 0
                 next_action = NextActionHint(
                     action="retry",
-                    message=f"Tuyệt! Tiếp theo: '{drill_words[new_idx]}'",
-                    focus_words=[drill_words[new_idx]],
+                    message=f"Tốt! Đọc lại 1 lần nữa để hoàn thành (đang ở {new_consec}/2 lần liên tiếp).",
                 )
-        elif overall_score >= 80 and target_words_passed and new_consec >= 2:
-            session.setdefault("session_stats", {}).setdefault("passed_first_try", 0)
-            if int(session.get("fail_count") or 0) == 0:
-                session["session_stats"]["passed_first_try"] += 1
-            session["fail_count"] = 0
-            await asyncio.to_thread(_advance_to_next_content_sync, session)
-            next_action = NextActionHint(action="pass", message="Mastered! Continue to the next sentence.")
-        elif overall_score >= 80 and target_words_passed:
-            session["fail_count"] = 0
-            next_action = NextActionHint(
-                action="retry",
-                message=f"Tốt! Đọc lại 1 lần nữa để hoàn thành (đang ở {new_consec}/2 lần liên tiếp).",
-            )
-        else:
-            session["fail_count"] = int(session.get("fail_count") or 0) + 1
-            if session["fail_count"] >= 4:
-                await asyncio.to_thread(_advance_to_next_content_sync, session)
-                session["fail_count"] = 0
-                next_action = NextActionHint(
-                    action="pass",
-                    message="Moving on. You can revisit this sentence later.",
-                    focus_words=weak_words or None,
-                )
-            elif session["fail_count"] >= 2 and weak_words:
-                session.setdefault("session_stats", {}).setdefault("needed_drill", 0)
-                if session.get("mode") != "word_drill":
-                    session["session_stats"]["needed_drill"] += 1
-                    session["mode"] = "word_drill"
-                    session["drill_words"] = weak_words
-                    session["drill_index"] = 0
-                    session["drill_attempts"] = {}
+            else:
+                session["fail_count"] = int(session.get("fail_count") or 0) + 1
+                if session["fail_count"] >= 4:
+                    await asyncio.to_thread(_advance_to_next_content_sync, session)
+                    session["fail_count"] = 0
                     next_action = NextActionHint(
-                        action="word_drill",
-                        message="Second failed attempt. Starting word drill.",
-                        focus_words=weak_words,
-                    )
-                else:
-                    next_action = NextActionHint(
-                        action="retry",
-                        message="Tiếp tục luyện từ này — bạn sẽ đọc được!",
+                        action="pass",
+                        message="Moving on. You can revisit this sentence later.",
                         focus_words=weak_words or None,
                     )
-            else:
-                next_action = NextActionHint(action="retry", message="Retry the same sentence.", focus_words=weak_words or None)
+                elif session["fail_count"] >= 2 and weak_words:
+                    session.setdefault("session_stats", {}).setdefault("needed_drill", 0)
+                    if session.get("mode") != "word_drill":
+                        session["session_stats"]["needed_drill"] += 1
+                        session["mode"] = "word_drill"
+                        session["drill_words"] = weak_words
+                        session["drill_index"] = 0
+                        session["drill_attempts"] = {}
+                        next_action = NextActionHint(
+                            action="word_drill",
+                            message="Second failed attempt. Starting word drill.",
+                            focus_words=weak_words,
+                        )
+                    else:
+                        next_action = NextActionHint(
+                            action="retry",
+                            message="Tiếp tục luyện từ này — bạn sẽ đọc được!",
+                            focus_words=weak_words or None,
+                        )
+                else:
+                    next_action = NextActionHint(action="retry", message="Retry the same sentence.", focus_words=weak_words or None)
+
+            progress = await asyncio.to_thread(get_phase_progress, session["current_phase_id"])
+            session["phase_mastered_count"] = progress["mastered"]
+            session["phase_total_content"] = progress["total"]
+            await asyncio.to_thread(_save_session_sync, user_id, session)
 
         coaching = await asyncio.to_thread(
             _maybe_generate_coaching_sync,
@@ -795,11 +814,6 @@ async def score_practice_audio(
             target_words_passed=target_words_passed,
             word_scores=word_scores,
         )
-
-        progress = await asyncio.to_thread(get_phase_progress, session["current_phase_id"])
-        session["phase_mastered_count"] = progress["mastered"]
-        session["phase_total_content"] = progress["total"]
-        await asyncio.to_thread(_save_session_sync, user_id, session)
 
         current_item_model = _to_content_item(current_content)
         if current_item_model is None:
