@@ -297,9 +297,80 @@ public struct ArchiveCurriculumResponse: Codable {
     }
 }
 
-public struct WebSocketEnvelope: Codable {
+public enum WebSocketPayload {
+    case connected(ConnectedPayload)
+    case practiceState(PracticeStatePayload)
+    case scoringResult(ScoringResultPayload)
+    case error(ErrorPayload)
+    case heartbeat
+    case unknown
+}
+
+public struct ConnectedPayload: Codable {
+    public let userId: String?
+    public let resumed: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case resumed
+    }
+}
+
+public struct PracticeStatePayload: Codable {
+    public let status: String?
+    public let message: String?
+}
+
+public struct ScoringResultPayload: Codable {
+    public let status: String?
+    public let message: String?
+}
+
+public struct ErrorPayload: Codable {
+    public let errorCode: String?
+    public let message: String?
+    public let detail: String?
+
+    enum CodingKeys: String, CodingKey {
+        case errorCode = "error_code"
+        case message
+        case detail
+    }
+}
+
+public struct WebSocketEnvelope: Decodable {
     public let event: String
     public let timestamp: String
-    // Since data can be any dict, we'll keep it simple by decoding to Data or using a dynamic container.
-    // For now, let's keep it as raw JSON Data for specific event parsing later.
+    public let data: WebSocketPayload
+
+    enum CodingKeys: String, CodingKey {
+        case event
+        case timestamp
+        case data
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        event = try container.decode(String.self, forKey: .event)
+        timestamp = try container.decode(String.self, forKey: .timestamp)
+
+        switch event {
+        case "connected":
+            let payload = try container.decodeIfPresent(ConnectedPayload.self, forKey: .data)
+            data = payload.map { .connected($0) } ?? .unknown
+        case "practice_state":
+            let payload = try container.decodeIfPresent(PracticeStatePayload.self, forKey: .data)
+            data = payload.map { .practiceState($0) } ?? .unknown
+        case "scoring_result":
+            let payload = try container.decodeIfPresent(ScoringResultPayload.self, forKey: .data)
+            data = payload.map { .scoringResult($0) } ?? .unknown
+        case "error":
+            let payload = try container.decodeIfPresent(ErrorPayload.self, forKey: .data)
+            data = payload.map { .error($0) } ?? .unknown
+        case "heartbeat":
+            data = .heartbeat
+        default:
+            data = .unknown
+        }
+    }
 }
