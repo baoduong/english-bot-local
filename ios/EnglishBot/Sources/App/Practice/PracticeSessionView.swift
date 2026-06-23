@@ -21,7 +21,7 @@ public struct PracticeSessionView: View {
             }
         }
         .padding(Spacing.lg)
-        .background(Color.BotTheme.backgroundMain.ignoresSafeArea())
+        .background(Color.BotTheme.backgroundMain)
         .onChange(of: viewModel.currentSentence) { _ in
             audioPlayer.clearCache()
         }

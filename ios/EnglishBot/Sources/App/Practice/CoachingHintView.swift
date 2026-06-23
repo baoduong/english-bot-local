@@ -42,6 +42,9 @@ public struct CoachingHintView: View {
             Text(hint.messageVi)
                 .font(Font.BotTheme.bodyPrimary)
                 .foregroundColor(Color.BotTheme.textPrimary)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
             
             // Layout-specific content
             if hint.action == "scaffold" {
@@ -59,6 +62,8 @@ public struct CoachingHintView: View {
                     Text(tip)
                         .font(Font.BotTheme.bodySecondary)
                         .foregroundColor(Color.BotTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .padding(.top, Spacing.xs)
             }
@@ -139,6 +144,8 @@ public struct CoachingHintView: View {
                     Text(reason)
                         .font(Font.BotTheme.bodySecondary)
                         .foregroundColor(Color.BotTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
@@ -197,6 +204,8 @@ public struct CoachingHintView: View {
                     Text(reason)
                         .font(Font.BotTheme.bodySecondary)
                         .foregroundColor(Color.BotTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
