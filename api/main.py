@@ -12,7 +12,7 @@ import logging
 import time
 import asyncio
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -49,6 +49,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # 1. DB init — ensure all tables exist
     try:
         conn = get_db_connection()
+        _ = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         # Import schema module to trigger CREATE TABLE IF NOT EXISTS statements
         import db.schema as _schema  # noqa: F401 — side-effect import
         conn.close()

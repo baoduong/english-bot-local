@@ -1,0 +1,15 @@
+[run]
+omit =
+    tests/*
+    venv/*
+    ios/*
+    scripts/*
+    */__pycache__/*
+    */migrations/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if __name__ == .__main__
+    raise NotImplementedError
