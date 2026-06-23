@@ -740,16 +740,23 @@ async def score_practice_audio(
                 )
             elif session["fail_count"] >= 2 and weak_words:
                 session.setdefault("session_stats", {}).setdefault("needed_drill", 0)
-                session["session_stats"]["needed_drill"] += 1
-                session["mode"] = "word_drill"
-                session["drill_words"] = weak_words
-                session["drill_index"] = 0
-                session["drill_attempts"] = {}
-                next_action = NextActionHint(
-                    action="word_drill",
-                    message="Second failed attempt. Starting word drill.",
-                    focus_words=weak_words,
-                )
+                if session.get("mode") != "word_drill":
+                    session["session_stats"]["needed_drill"] += 1
+                    session["mode"] = "word_drill"
+                    session["drill_words"] = weak_words
+                    session["drill_index"] = 0
+                    session["drill_attempts"] = {}
+                    next_action = NextActionHint(
+                        action="word_drill",
+                        message="Second failed attempt. Starting word drill.",
+                        focus_words=weak_words,
+                    )
+                else:
+                    next_action = NextActionHint(
+                        action="retry",
+                        message="Tiếp tục luyện từ này — bạn sẽ đọc được!",
+                        focus_words=weak_words or None,
+                    )
             else:
                 next_action = NextActionHint(action="retry", message="Retry the same sentence.", focus_words=weak_words or None)
 
