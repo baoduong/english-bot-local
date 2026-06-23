@@ -290,6 +290,22 @@ public struct ScoringResult: Codable {
     }
 }
 
+public struct ScratchScoringResult: Codable {
+    public let overallScore: Int
+    public let transcript: String
+    public let expectedText: String
+    public let wordScores: [WordScore]
+    public let passed: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case overallScore = "overall_score"
+        case transcript
+        case expectedText = "expected_text"
+        case wordScores = "word_scores"
+        case passed
+    }
+}
+
 public struct NextActionHint: Codable {
     public let action: String
     public let message: String

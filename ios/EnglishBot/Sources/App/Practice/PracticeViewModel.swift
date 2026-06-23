@@ -26,8 +26,8 @@ public class PracticeViewModel: ObservableObject {
     @Published public var drillWord: String = ""
     @Published public var drillProgress: String = ""
 
-    private let userId: String
-    private let apiClient: APIClient
+    public let userId: String
+    public let apiClient: APIClient
     private var currentContentId: Int?
 
     public init(userId: String, apiClient: APIClient = APIClient()) {

@@ -43,6 +43,7 @@ from api.models import (
     PracticeStopResponse,
     SampleAudio,
     ScoringResult,
+    ScratchScoringResult,
     SessionEndSummary,
     WordScore,
 )
@@ -810,6 +811,71 @@ async def score_practice_audio(
             current_item=current_item_model,
             consecutive_passes=new_consec,
             coaching=coaching,
+        )
+    finally:
+        with suppress(Exception):
+            if source_path.exists():
+                source_path.unlink()
+        with suppress(Exception):
+            if wav_path.exists():
+                wav_path.unlink()
+
+
+@router.post("/scratch-score", response_model=ScratchScoringResult)
+async def score_scratch_audio(
+    user_id: str = Form(...),
+    target_text: str = Form(...),
+    audio_file: UploadFile = File(...),
+) -> ScratchScoringResult:
+    await asyncio.to_thread(_require_user_sync, user_id)
+
+    suffix = Path(audio_file.filename or "upload").suffix.lower()
+    if suffix != ".m4a":
+        raise _error(400, "INVALID_AUDIO", "Only .m4a uploads are supported.")
+
+    expected = target_text.strip()
+    if not expected:
+        raise _error(400, "INVALID_AUDIO", "Target text is required.")
+
+    temp_dir = Path(tempfile.gettempdir())
+    source_path = temp_dir / f"{uuid4()}_{Path(audio_file.filename or 'scratch').name}"
+    wav_path = temp_dir / f"{uuid4()}_scratch.wav"
+
+    try:
+        payload = await audio_file.read()
+        if not payload:
+            raise _error(400, "INVALID_AUDIO", "Uploaded audio file is empty.")
+
+        await asyncio.to_thread(source_path.write_bytes, payload)
+        await asyncio.to_thread(_transcode_to_wav_sync, str(source_path), str(wav_path))
+
+        analysis = await asyncio.to_thread(analyze_audio_with_whisper, str(wav_path), expected)
+        try:
+            per_word_phonemes = await asyncio.to_thread(analyze_phonemes_per_word, str(wav_path), expected)
+        except Exception as exc:
+            print(f"⚠️ Phoneme recognition failed: {exc}")
+            per_word_phonemes = {}
+
+        overall_score, _ansi_feedback, _feedback_message, _problem_words, _error_types, _raw_word_scores = analysis
+        word_scores, _weak_words, _error_labels, _score_map = await asyncio.to_thread(
+            _build_word_scores,
+            expected,
+            analysis,
+            per_word_phonemes,
+        )
+
+        transcript = ""
+        if len(analysis) > 6 and isinstance(analysis[6], str):
+            transcript = analysis[6]
+        if not transcript:
+            transcript = expected
+
+        return ScratchScoringResult(
+            overall_score=int(overall_score),
+            transcript=transcript,
+            expected_text=expected,
+            word_scores=word_scores,
+            passed=int(overall_score) >= 80,
         )
     finally:
         with suppress(Exception):

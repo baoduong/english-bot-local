@@ -187,6 +187,38 @@ public class APIClient: ObservableObject {
         return try decode(data, type: PracticeAudioResponse.self)
     }
 
+    public func scoreScratch(userId: String, audioURL: URL, targetText: String) async throws -> ScratchScoringResult {
+        guard let url = URL(string: "/practice/scratch-score", relativeTo: baseURL) else { throw APIError.invalidURL }
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+        func appendField(_ name: String, _ value: String) {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(value)\r\n".data(using: .utf8)!)
+        }
+
+        appendField("user_id", userId)
+        appendField("target_text", targetText)
+
+        let fileData = try Data(contentsOf: audioURL)
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"audio_file\"; filename=\"scratch.m4a\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: audio/m4a\r\n\r\n".data(using: .utf8)!)
+        body.append(fileData)
+        body.append("\r\n".data(using: .utf8)!)
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        if !(200...299).contains(httpResponse.statusCode) { throw APIError.httpError(httpResponse.statusCode) }
+        return try decode(data, type: ScratchScoringResult.self)
+    }
+
     public func getProgress(userId: String) async throws -> ProgressResponse {
         guard let url = URL(string: "/progress?user_id=\(userId)", relativeTo: baseURL) else { throw APIError.invalidURL }
         var request = URLRequest(url: url)

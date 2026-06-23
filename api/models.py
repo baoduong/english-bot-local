@@ -337,6 +337,14 @@ class ScoringResult(BaseModel):
     pace_wpm: Optional[float] = None
 
 
+class ScratchScoringResult(BaseModel):
+    overall_score: int = Field(ge=0, le=100)
+    transcript: str
+    expected_text: str
+    word_scores: list[WordScore] = Field(default_factory=list)
+    passed: bool
+
+
 class NextActionHint(BaseModel):
     action: str
     message: str
