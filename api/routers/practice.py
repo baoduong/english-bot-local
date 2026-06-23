@@ -13,7 +13,10 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from analysis.coaching_types import validate_coaching_response
-from analysis.pronunciation import analyze_audio as analyze_audio_with_whisper
+from analysis.pronunciation import (
+    _should_use_azure,
+    analyze_audio as analyze_audio_with_whisper,
+)
 from analysis.errors import (
     ERROR_TYPE_LABELS,
     classify_error,
@@ -398,6 +401,10 @@ def _build_word_scores(
     return words, sorted(set(weak_words)), sorted(set(labels)), score_map
 
 
+def _get_scoring_engine(expected_text: str) -> Literal["whisper", "azure"]:
+    return "azure" if _should_use_azure(expected_text) else "whisper"
+
+
 def _transcode_to_wav_sync(input_path: str, output_path: str) -> None:
     command = [
         "ffmpeg",
@@ -551,7 +558,11 @@ async def start_practice_session(body: PracticeSessionStartRequest) -> PracticeS
     await asyncio.to_thread(_require_user_sync, body.user_id)
     session = await asyncio.to_thread(_load_session_sync, body.user_id)
     if session and session.get("mode") in {"curriculum_practice", "word_drill"} and body.resume_if_exists:
-        return await asyncio.to_thread(_build_state_response_sync, body.user_id, session)
+        try:
+            return await asyncio.to_thread(_build_state_response_sync, body.user_id, session)
+        except Exception as e:
+            print(f"⚠️ Resume failed for user {body.user_id}, clearing stale session: {e}")
+            await asyncio.to_thread(delete_session, body.user_id)
 
     session = await asyncio.to_thread(_build_new_session_sync, body.user_id)
     await asyncio.to_thread(_save_session_sync, body.user_id, session)
@@ -666,6 +677,7 @@ async def score_practice_audio(
         await asyncio.to_thread(source_path.write_bytes, payload)
         await asyncio.to_thread(_transcode_to_wav_sync, str(source_path), str(wav_path))
 
+        engine_used = await asyncio.to_thread(_get_scoring_engine, expected)
         analysis = await asyncio.to_thread(analyze_audio_with_whisper, str(wav_path), expected)
         try:
             per_word_phonemes = await asyncio.to_thread(analyze_phonemes_per_word, str(wav_path), expected)
@@ -686,7 +698,8 @@ async def score_practice_audio(
             per_word_phonemes,
         )
 
-        await asyncio.to_thread(_record_practice_metrics_sync, user_id, expected, int(overall_score), score_map, error_types)
+        if session.get("mode") != "word_drill":
+            await asyncio.to_thread(_record_practice_metrics_sync, user_id, expected, int(overall_score), score_map, error_types)
 
         target_words = current_content.get("target_words", []) or []
         target_words_passed = True
@@ -768,8 +781,16 @@ async def score_practice_audio(
                 if int(session.get("fail_count") or 0) == 0:
                     session["session_stats"]["passed_first_try"] += 1
                 session["fail_count"] = 0
-                await asyncio.to_thread(_advance_to_next_content_sync, session)
-                next_action = NextActionHint(action="pass", message="Mastered! Continue to the next sentence.")
+                advanced = await asyncio.to_thread(_advance_to_next_content_sync, session)
+                if advanced is None:
+                    session["sentence"] = None
+                    session["content_id"] = None
+                    next_action = NextActionHint(
+                        action="phase_complete",
+                        message="Phase complete! All sentences mastered.",
+                    )
+                else:
+                    next_action = NextActionHint(action="pass", message="Mastered! Continue to the next sentence.")
             elif overall_score >= 80 and target_words_passed:
                 session["fail_count"] = 0
                 next_action = NextActionHint(
@@ -779,13 +800,21 @@ async def score_practice_audio(
             else:
                 session["fail_count"] = int(session.get("fail_count") or 0) + 1
                 if session["fail_count"] >= 4:
-                    await asyncio.to_thread(_advance_to_next_content_sync, session)
+                    advanced = await asyncio.to_thread(_advance_to_next_content_sync, session)
+                    if advanced is None:
+                        session["sentence"] = None
+                        session["content_id"] = None
+                        next_action = NextActionHint(
+                            action="phase_complete",
+                            message="Phase complete! All sentences mastered.",
+                        )
+                    else:
+                        next_action = NextActionHint(
+                            action="pass",
+                            message="Moving on. You can revisit this sentence later.",
+                            focus_words=weak_words or None,
+                        )
                     session["fail_count"] = 0
-                    next_action = NextActionHint(
-                        action="pass",
-                        message="Moving on. You can revisit this sentence later.",
-                        focus_words=weak_words or None,
-                    )
                 elif session["fail_count"] >= 2 and weak_words:
                     session.setdefault("session_stats", {}).setdefault("needed_drill", 0)
                     if session.get("mode") != "word_drill":
@@ -833,7 +862,7 @@ async def score_practice_audio(
                 passed=overall_score >= 80,
                 transcript=expected,
                 expected_text=expected,
-                engine="whisper",
+                engine=engine_used,
                 weak_words=weak_words,
                 error_types=error_labels,
                 feedback_message=feedback_message,
