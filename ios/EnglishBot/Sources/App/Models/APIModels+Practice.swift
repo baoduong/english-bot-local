@@ -364,6 +364,32 @@ public struct CoachingHint: Codable {
     }
 }
 
+public struct CoachingPendingResponse: Codable {
+    public let coaching: CoachingHint?
+    public let ackToken: String?
+    public let contentId: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case coaching
+        case ackToken = "ack_token"
+        case contentId = "content_id"
+    }
+}
+
+public struct CoachingAckRequest: Codable {
+    public let userId: String
+    public let ackToken: String
+
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case ackToken = "ack_token"
+    }
+}
+
+public struct CoachingAckResponse: Codable {
+    public let cleared: Bool
+}
+
 public struct PracticeAudioResponse: Codable {
     public let scoring: ScoringResult
     public let nextAction: NextActionHint

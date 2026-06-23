@@ -36,6 +36,9 @@ public struct PracticeSessionView: View {
                 _ = await audioRecorder.requestPermission()
             }
         }
+        .onDisappear {
+            viewModel.onViewDisappear()
+        }
         .alert("Cần quyền micro", isPresented: $showMicDeniedAlert) {
             Button("Mở Cài đặt") {
                 #if canImport(UIKit)

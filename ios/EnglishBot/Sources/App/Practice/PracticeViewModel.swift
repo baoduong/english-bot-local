@@ -30,6 +30,7 @@ public class PracticeViewModel: ObservableObject {
     public let userId: String
     public let apiClient: APIClient
     private var currentContentId: Int?
+    private var pollingTask: Task<Void, Never>?
 
     public init(userId: String, apiClient: APIClient = APIClient.shared) {
         self.userId = userId
@@ -53,6 +54,7 @@ public class PracticeViewModel: ObservableObject {
     }
 
     private func applyState(_ response: PracticeSessionStateResponse) {
+        cancelCoachingPolling()
         coachingHint = nil
         phaseComplete = response.phaseComplete
         phaseProgress = response.progress
@@ -71,8 +73,59 @@ public class PracticeViewModel: ObservableObject {
         }
     }
 
+    private func cancelCoachingPolling() {
+        pollingTask?.cancel()
+        pollingTask = nil
+    }
+
+    public func onViewDisappear() {
+        cancelCoachingPolling()
+    }
+
+    private func startCoachingPolling() {
+        cancelCoachingPolling()
+        let attemptContentId = currentContentId
+        pollingTask = Task { [weak self] in
+            guard let self = self else { return }
+
+            for _ in 0..<10 {
+                do {
+                    try await Task.sleep(nanoseconds: 3_000_000_000)
+                } catch {
+                    break
+                }
+
+                if Task.isCancelled { break }
+
+                do {
+                    let response = try await self.apiClient.getPendingCoaching(userId: self.userId)
+                    if let hint = response.coaching, let token = response.ackToken {
+                        if let responseContentId = response.contentId,
+                           let attemptContentId,
+                           responseContentId != attemptContentId {
+                            continue
+                        }
+
+                        await MainActor.run {
+                            self.coachingHint = hint
+                        }
+                        _ = try? await self.apiClient.ackCoaching(userId: self.userId, ackToken: token)
+                        break
+                    }
+                } catch {
+                    continue
+                }
+            }
+
+            await MainActor.run {
+                self.pollingTask = nil
+            }
+        }
+    }
+
     public func startSession() async {
         guard !hasStarted else { return }
+        cancelCoachingPolling()
         state = .idle
         errorMessage = nil
         do {
@@ -106,10 +159,10 @@ public class PracticeViewModel: ObservableObject {
             )
             scoreResult = response.scoring
             nextAction = response.nextAction
-            coachingHint = response.coaching
+            coachingHint = nil
             consecutivePasses = response.consecutivePasses
-            currentContentId = response.currentItem?.contentId
             state = .scored
+            startCoachingPolling()
         } catch {
             errorMessage = error.localizedDescription
             state = .idle
@@ -117,6 +170,7 @@ public class PracticeViewModel: ObservableObject {
     }
 
     public func skip() async {
+        cancelCoachingPolling()
         errorMessage = nil
         do {
             let response = try await apiClient.skipPracticeItem(userId: userId)
@@ -131,6 +185,7 @@ public class PracticeViewModel: ObservableObject {
     }
 
     public func stop() async {
+        cancelCoachingPolling()
         hasStarted = false
         errorMessage = nil
         do {
@@ -157,6 +212,7 @@ public class PracticeViewModel: ObservableObject {
     }
 
     public func next() async {
+        cancelCoachingPolling()
         errorMessage = nil
         scoreResult = nil
         nextAction = nil

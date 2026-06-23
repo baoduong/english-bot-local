@@ -231,6 +231,34 @@ public class APIClient: ObservableObject {
         return try decode(data, type: PracticeAudioResponse.self)
     }
 
+    public func getPendingCoaching(userId: String) async throws -> CoachingPendingResponse {
+        let url = baseURL.appendingPathComponent("practice/coaching/pending")
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "user_id", value: userId)]
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "GET"
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        if !(200...299).contains(httpResponse.statusCode) { throw APIError.httpError(httpResponse.statusCode) }
+
+        return try decode(data, type: CoachingPendingResponse.self)
+    }
+
+    public func ackCoaching(userId: String, ackToken: String) async throws -> CoachingAckResponse {
+        let url = baseURL.appendingPathComponent("practice/coaching/ack")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encode(CoachingAckRequest(userId: userId, ackToken: ackToken))
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        if !(200...299).contains(httpResponse.statusCode) { throw APIError.httpError(httpResponse.statusCode) }
+
+        return try decode(data, type: CoachingAckResponse.self)
+    }
+
     public func scoreScratch(userId: String, audioURL: URL, targetText: String) async throws -> ScratchScoringResult {
         guard let url = URL(string: "/practice/scratch-score", relativeTo: baseURL) else { throw APIError.invalidURL }
         let boundary = "Boundary-\(UUID().uuidString)"
