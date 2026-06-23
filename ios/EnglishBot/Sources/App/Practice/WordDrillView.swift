@@ -5,6 +5,7 @@ public struct WordDrillView: View {
     @ObservedObject var viewModel: PracticeViewModel
     @ObservedObject var audioRecorder: AudioRecorder
     @ObservedObject var audioPlayer: AudioPlayer
+    @State private var showMicDeniedAlert = false
     
     public var body: some View {
         VStack(spacing: Spacing.xl) {
@@ -115,12 +116,26 @@ public struct WordDrillView: View {
                         do {
                             _ = try audioRecorder.startRecording()
                             viewModel.onRecordingStarted()
+                        } catch AudioRecorder.AudioRecorderError.permissionDenied {
+                            showMicDeniedAlert = true
                         } catch {
                             print("Recording failed: \(error)")
                         }
                     }
                 }
             }
+        }
+        .alert("Cần quyền micro", isPresented: $showMicDeniedAlert) {
+            Button("Mở Cài đặt") {
+                #if canImport(UIKit)
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+                #endif
+            }
+            Button("Đóng", role: .cancel) {}
+        } message: {
+            Text("Mở Cài đặt → English Bot → Microphone để cho phép ghi âm")
         }
     }
 }

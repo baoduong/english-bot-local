@@ -8,6 +8,11 @@ public class AudioRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate 
     public override init() {
         super.init()
     }
+
+    public enum AudioRecorderError: Error {
+        case permissionDenied
+        case recordingFailed(Error)
+    }
     
     public func requestPermission() async -> Bool {
         #if os(iOS)
@@ -24,8 +29,33 @@ public class AudioRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate 
     public func startRecording() throws -> URL {
         #if os(iOS)
         let audioSession = AVAudioSession.sharedInstance()
-        try audioSession.setCategory(.playAndRecord, mode: .default, options: .defaultToSpeaker)
-        try audioSession.setActive(true)
+        let permission = audioSession.recordPermission
+        switch permission {
+        case .denied, .undetermined:
+            throw AudioRecorderError.permissionDenied
+        case .granted:
+            break
+        @unknown default:
+            break
+        }
+        let semaphore = DispatchSemaphore(value: 0)
+        var activationError: Error?
+
+        Task {
+            do {
+                try await AudioSessionCoordinator.shared.activate(for: .record)
+            } catch {
+                activationError = error
+            }
+
+            semaphore.signal()
+        }
+
+        semaphore.wait()
+
+        if let activationError {
+            throw activationError
+        }
         #endif
         
         let documentPath = FileManager.default.temporaryDirectory
@@ -38,10 +68,18 @@ public class AudioRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate 
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
         ]
         
-        audioRecorder = try AVAudioRecorder(url: url, settings: settings)
-        audioRecorder?.delegate = self
-        audioRecorder?.record()
-        
+        do {
+            audioRecorder = try AVAudioRecorder(url: url, settings: settings)
+            audioRecorder?.delegate = self
+            guard audioRecorder?.record() == true else {
+                throw AudioRecorderError.recordingFailed(NSError(domain: "AudioRecorder", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to start recording"]))
+            }
+        } catch let error as AudioRecorderError {
+            throw error
+        } catch {
+            throw AudioRecorderError.recordingFailed(error)
+        }
+
         DispatchQueue.main.async {
             self.isRecording = true
         }
@@ -55,11 +93,8 @@ public class AudioRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate 
         recorder.stop()
         
         #if os(iOS)
-        do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setActive(false)
-        } catch {
-            print("Failed to deactivate audio session")
+        Task {
+            try? await AudioSessionCoordinator.shared.deactivate()
         }
         #endif
         

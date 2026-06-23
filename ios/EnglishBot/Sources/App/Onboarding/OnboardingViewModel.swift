@@ -6,6 +6,7 @@ import SwiftUI
 public class OnboardingViewModel: ObservableObject {
     @Published public var messages: [OnboardingMessage] = []
     @Published public var isTyping = false
+    @Published public var isLoading = false
     @Published public var pendingGoal: GoalSynthesis?
     @Published public var synthesisConfirmed = false
     @Published public var errorMessage: String?
@@ -57,6 +58,24 @@ public class OnboardingViewModel: ObservableObject {
         do {
             let response = try await apiClient.confirmOnboarding(userId: userId, confirmed: accepted)
             if response.status == "confirmed" {
+                if response.loading?.blocking == true {
+                    isTyping = false
+                    isLoading = true
+
+                    for _ in 0..<20 {
+                        try? await Task.sleep(nanoseconds: 3_000_000_000)
+
+                        do {
+                            let _ = try await apiClient.getCurrentCurriculum(userId: userId)
+                            break
+                        } catch {
+                            continue
+                        }
+                    }
+
+                    isLoading = false
+                }
+
                 self.synthesisConfirmed = true
                 NotificationCenter.default.post(name: .onboardingConfirmed, object: nil)
             } else {
@@ -64,6 +83,7 @@ public class OnboardingViewModel: ObservableObject {
             }
         } catch {
             self.errorMessage = error.localizedDescription
+            isLoading = false
         }
         isTyping = false
     }

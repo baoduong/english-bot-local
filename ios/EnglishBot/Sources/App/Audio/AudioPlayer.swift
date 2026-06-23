@@ -3,6 +3,7 @@ import AVFoundation
 
 public class AudioPlayer: ObservableObject {
     private var player: AVPlayer?
+    private var observerToken: NSObjectProtocol?
     @Published public var isPlaying = false
     private var cache: [URL: URL] = [:]
     private let cacheDir: URL = FileManager.default.temporaryDirectory.appendingPathComponent("audio_cache")
@@ -12,12 +13,17 @@ public class AudioPlayer: ObservableObject {
     }
 
     public func play(url: URL) {
+        removeObserver()
+
         #if os(iOS)
-        do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playAndRecord, mode: .default, options: .defaultToSpeaker)
-            try audioSession.setActive(true)
-        } catch {}
+        let semaphore = DispatchSemaphore(value: 0)
+
+        Task {
+            try? await AudioSessionCoordinator.shared.activate(for: .playback)
+            semaphore.signal()
+        }
+
+        semaphore.wait()
         #endif
 
         if let localFile = cache[url] {
@@ -50,12 +56,25 @@ public class AudioPlayer: ObservableObject {
     public func stop() {
         player?.pause()
         isPlaying = false
+        removeObserver()
+
+        #if os(iOS)
+        Task {
+            try? await AudioSessionCoordinator.shared.deactivate()
+        }
+        #endif
     }
 
     private func playLocal(_ fileURL: URL) {
         let playerItem = AVPlayerItem(url: fileURL)
         player = AVPlayer(playerItem: playerItem)
-        NotificationCenter.default.addObserver(self, selector: #selector(playerDidFinishPlaying), name: .AVPlayerItemDidPlayToEndTime, object: playerItem)
+        observerToken = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem,
+            queue: .main
+        ) { [weak self] _ in
+            self?.playerDidFinishPlaying()
+        }
         player?.play()
         isPlaying = true
     }
@@ -63,14 +82,36 @@ public class AudioPlayer: ObservableObject {
     private func playRemote(_ url: URL) {
         let playerItem = AVPlayerItem(url: url)
         player = AVPlayer(playerItem: playerItem)
-        NotificationCenter.default.addObserver(self, selector: #selector(playerDidFinishPlaying), name: .AVPlayerItemDidPlayToEndTime, object: playerItem)
+        observerToken = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem,
+            queue: .main
+        ) { [weak self] _ in
+            self?.playerDidFinishPlaying()
+        }
         player?.play()
         isPlaying = true
     }
 
-    @objc private func playerDidFinishPlaying(sender: Notification) {
-        DispatchQueue.main.async {
-            self.isPlaying = false
+    private func removeObserver() {
+        if let token = observerToken {
+            NotificationCenter.default.removeObserver(token)
+            observerToken = nil
         }
+    }
+
+    private func playerDidFinishPlaying() {
+        isPlaying = false
+        removeObserver()
+
+        #if os(iOS)
+        Task {
+            try? await AudioSessionCoordinator.shared.deactivate()
+        }
+        #endif
+    }
+
+    deinit {
+        removeObserver()
     }
 }
