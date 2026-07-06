@@ -49,7 +49,9 @@ class OllamaClient:
 
         for attempt in range(1, self.max_retries + 1):
             try:
-                response = requests.request(method, url, timeout=self.timeout_seconds, **kwargs)
+                # Prefer caller-supplied timeout (from generate_json_sync per-call override), else instance default
+                timeout = kwargs.pop("timeout", self.timeout_seconds)
+                response = requests.request(method, url, timeout=timeout, **kwargs)
                 response.raise_for_status()
                 if not response.text or not response.text.strip():
                     raise ValueError(f"Ollama returned empty response body (HTTP {response.status_code})")
