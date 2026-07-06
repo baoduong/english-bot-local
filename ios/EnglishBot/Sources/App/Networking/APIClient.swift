@@ -63,9 +63,20 @@ public class APIClient: ObservableObject {
     
     private func decode<T: Decodable>(_ data: Data, type: T.Type) throws -> T {
         let decoder = JSONDecoder()
-        // If dates are used, uncomment and configure date format
-        // decoder.dateDecodingStrategy = .iso8601
-        return try decoder.decode(T.self, from: data)
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch let DecodingError.keyNotFound(key, context) {
+            print("❌ [APIClient] Missing key '\(key.stringValue)' at \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+            throw APIError.decodingError(DecodingError.keyNotFound(key, context))
+        } catch let DecodingError.typeMismatch(expectedType, context) {
+            print("❌ [APIClient] Type mismatch: expected \(expectedType) at \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+            throw APIError.decodingError(DecodingError.typeMismatch(expectedType, context))
+        } catch let DecodingError.valueNotFound(expectedType, context) {
+            print("❌ [APIClient] Value not found: \(expectedType) at \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+            throw APIError.decodingError(DecodingError.valueNotFound(expectedType, context))
+        } catch {
+            throw APIError.decodingError(error)
+        }
     }
     
     private func encode<T: Encodable>(_ payload: T) throws -> Data {

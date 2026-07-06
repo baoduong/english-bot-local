@@ -180,13 +180,33 @@ public struct Milestone: Codable, Identifiable {
     public var id: String { description }
 }
 
+/// Vocabulary item as returned by the backend phase plan.
+/// Backend sends objects: {"word": "...", "ipa": "...", "vietnamese_gloss": "...", "example_sentence": "..."}
+public struct VocabularyItem: Codable, Identifiable {
+    public let word: String
+    public let ipa: String
+    public let vietnameseGloss: String
+    public let exampleSentence: String
+
+    public var id: String { word }
+
+    enum CodingKeys: String, CodingKey {
+        case word
+        case ipa
+        case vietnameseGloss = "vietnamese_gloss"
+        case exampleSentence = "example_sentence"
+    }
+}
+
 public struct CurriculumPhase: Codable, Identifiable {
     public let phaseId: Int
     public let phaseNumber: Int
     public let theme: String
     public let status: String
     public let milestones: [Milestone]?
-    public let vocabulary: [String]?
+    /// Backend sends VocabularyItem objects (word/ipa/vietnamese_gloss/example_sentence).
+    /// Previously typed as [String]? which caused a Codable type-mismatch decode error.
+    public let vocabulary: [VocabularyItem]?
     public let progress: PhaseProgress?
     public let regenerationCount: Int?
     
@@ -210,7 +230,7 @@ public struct CurriculumPhase: Codable, Identifiable {
         theme = try c.decode(String.self, forKey: .theme)
         status = try c.decode(String.self, forKey: .status)
         milestones = try c.decodeIfPresent([Milestone].self, forKey: .milestones)
-        vocabulary = try c.decodeIfPresent([String].self, forKey: .vocabulary)
+        vocabulary = try c.decodeIfPresent([VocabularyItem].self, forKey: .vocabulary)
         progress = try c.decodeIfPresent(PhaseProgress.self, forKey: .progress)
         regenerationCount = try c.decodeIfPresent(Int.self, forKey: .regenerationCount)
     }
