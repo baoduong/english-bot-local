@@ -368,6 +368,34 @@ def _score_color_from_accuracy(accuracy: float, expected_word: str, heard_word: 
     return "red", phon_sim
 
 
+def _extract_analysis(analysis: tuple[Any, ...]) -> dict[str, Any]:
+    """Extract named fields from engine return tuple (handles both 6-tuple and 7-tuple shapes).
+
+    7-tuple (current): transcript, final_score, ansi_feedback, feedback_message, problem_words, error_types, word_scores
+    6-tuple (legacy):  final_score, ansi_feedback, feedback_message, problem_words, error_types, word_scores
+    """
+    if len(analysis) >= 7:
+        return {
+            "transcript": analysis[0],
+            "overall_score": analysis[1],
+            "ansi_feedback": analysis[2],
+            "feedback_message": analysis[3],
+            "problem_words": analysis[4],
+            "error_types": analysis[5],
+            "word_scores": analysis[6],
+        }
+    # 6-tuple backward compat
+    return {
+        "transcript": "",
+        "overall_score": analysis[0],
+        "ansi_feedback": analysis[1],
+        "feedback_message": analysis[2],
+        "problem_words": analysis[3],
+        "error_types": analysis[4],
+        "word_scores": analysis[5],
+    }
+
+
 def _build_word_scores(
     expected_text: str,
     analysis: tuple[Any, ...],
@@ -473,7 +501,11 @@ def _transcode_to_wav_sync(input_path: str, output_path: str) -> None:
 
 def _record_practice_metrics_sync(user_id: str, sentence: str, score: int, score_map: dict[str, Any], error_types: list[tuple[str, str]]) -> None:
     log_score(user_id, sentence, score)
-    for word, err_type in error_types:
+    for item in error_types:
+        if not (isinstance(item, tuple) and len(item) == 2):
+            print(f"⚠️ _record_practice_metrics_sync: skipping malformed error_type item: {item!r}")
+            continue
+        word, err_type = item
         log_error_pattern(user_id, err_type, word)
     if score_map:
         record_word_attempts_batch(user_id, score_map)
@@ -902,11 +934,11 @@ async def score_practice_audio(
             prosody = await asyncio.to_thread(get_prosody_analyzer().analyze, str(wav_path), word_count)
         except Exception as exc:
             print(f"⚠️ Prosody analysis failed: {exc}")
-        if len(analysis) == 7:
-            transcript, overall_score, _ansi_feedback, feedback_message, error_types, _problem_words, _word_scores = analysis
-        else:
-            overall_score, _ansi_feedback, feedback_message, _problem_words, error_types, _word_scores = analysis
-            transcript = expected
+        fields = _extract_analysis(analysis)
+        transcript = fields["transcript"] or expected
+        overall_score = fields["overall_score"]
+        feedback_message = fields["feedback_message"]
+        error_types = fields["error_types"]
         word_scores, weak_words, error_labels, score_map = await asyncio.to_thread(
             _build_word_scores,
             expected,
@@ -1169,19 +1201,15 @@ async def score_scratch_audio(
             print(f"⚠️ Phoneme recognition failed: {exc}")
             per_word_phonemes = {}
 
-        _transcript, overall_score, _ansi_feedback, _feedback_message, _problem_words, _error_types, _raw_word_scores = analysis
+        fields = _extract_analysis(analysis)
+        overall_score = fields["overall_score"]
+        transcript = fields["transcript"] or expected
         word_scores, _weak_words, _error_labels, _score_map = await asyncio.to_thread(
             _build_word_scores,
             expected,
             analysis,
             per_word_phonemes,
         )
-
-        transcript = ""
-        if analysis and isinstance(analysis[0], str):
-            transcript = analysis[0]
-        if not transcript:
-            transcript = expected
 
         return ScratchScoringResult(
             overall_score=int(overall_score),
