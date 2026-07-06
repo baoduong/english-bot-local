@@ -1,3 +1,4 @@
+# ruff: noqa: F401  — re-exports for external consumers, MUST NOT be auto-stripped
 """engines package — Speech recognition, LLM, and TTS engines."""
 
 from engines.tts import generate_sample_audio

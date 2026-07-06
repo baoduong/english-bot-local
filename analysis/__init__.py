@@ -1,3 +1,4 @@
+# ruff: noqa: F401  — re-exports for external consumers, MUST NOT be auto-stripped
 """analysis package — Pronunciation analysis, phoneme comparison, error classification, and learning memory."""
 
 from analysis.phonemes import clean_word, phoneme_similarity

@@ -1,3 +1,4 @@
+# ruff: noqa: F401  — re-exports for external consumers, MUST NOT be auto-stripped
 """db package — Database models and queries for the English Learning Bot."""
 
 from db.schema import init_db

@@ -8,9 +8,9 @@ public struct UserProfile: Codable, Identifiable {
     public let currentLevel: Int
     public let totalSessions: Int
     public let streakCount: Int
-    
+
     public var id: String { userId }
-    
+
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
         case username
@@ -19,6 +19,28 @@ public struct UserProfile: Codable, Identifiable {
         case currentLevel = "current_level"
         case totalSessions = "total_sessions"
         case streakCount = "streak_count"
+    }
+
+    public init(userId: String, username: String, displayName: String?,
+                interfaceLanguage: String, currentLevel: Int, totalSessions: Int, streakCount: Int) {
+        self.userId = userId
+        self.username = username
+        self.displayName = displayName
+        self.interfaceLanguage = interfaceLanguage
+        self.currentLevel = currentLevel
+        self.totalSessions = totalSessions
+        self.streakCount = streakCount
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        userId = try c.decode(String.self, forKey: .userId)
+        username = try c.decode(String.self, forKey: .username)
+        displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
+        interfaceLanguage = try c.decodeIfPresent(String.self, forKey: .interfaceLanguage) ?? "vi"
+        currentLevel = try c.decodeIfPresent(Int.self, forKey: .currentLevel) ?? 1
+        totalSessions = try c.decodeIfPresent(Int.self, forKey: .totalSessions) ?? 0
+        streakCount = try c.decodeIfPresent(Int.self, forKey: .streakCount) ?? 0
     }
 }
 
@@ -55,12 +77,20 @@ public struct GoalSynthesis: Codable {
     public let goalDescription: String
     public let suggestedPhaseCount: Int
     public let keyThemes: [String]
-    
+
     enum CodingKeys: String, CodingKey {
         case goalTitle = "goal_title"
         case goalDescription = "goal_description"
         case suggestedPhaseCount = "suggested_phase_count"
         case keyThemes = "key_themes"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        goalTitle = try c.decodeIfPresent(String.self, forKey: .goalTitle) ?? ""
+        goalDescription = try c.decodeIfPresent(String.self, forKey: .goalDescription) ?? ""
+        suggestedPhaseCount = try c.decodeIfPresent(Int.self, forKey: .suggestedPhaseCount) ?? 4
+        keyThemes = try c.decodeIfPresent([String].self, forKey: .keyThemes) ?? []
     }
 }
 
@@ -158,9 +188,9 @@ public struct CurriculumSummary: Codable, Identifiable {
     public let interfaceLanguage: String?
     public let createdAt: String?
     public let completedAt: String?
-    
+
     public var id: Int { curriculumId }
-    
+
     enum CodingKeys: String, CodingKey {
         case curriculumId = "curriculum_id"
         case status
@@ -171,6 +201,34 @@ public struct CurriculumSummary: Codable, Identifiable {
         case interfaceLanguage = "interface_language"
         case createdAt = "created_at"
         case completedAt = "completed_at"
+    }
+
+    // Memberwise init — used by mock() extension in APIModels+Practice.swift
+    public init(curriculumId: Int, status: String, goalTitle: String, goalDescription: String,
+                currentPhaseNumber: Int, userId: String?, interfaceLanguage: String?,
+                createdAt: String?, completedAt: String?) {
+        self.curriculumId = curriculumId
+        self.status = status
+        self.goalTitle = goalTitle
+        self.goalDescription = goalDescription
+        self.currentPhaseNumber = currentPhaseNumber
+        self.userId = userId
+        self.interfaceLanguage = interfaceLanguage
+        self.createdAt = createdAt
+        self.completedAt = completedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        curriculumId = try c.decode(Int.self, forKey: .curriculumId)
+        status = try c.decodeIfPresent(String.self, forKey: .status) ?? "active"
+        goalTitle = try c.decodeIfPresent(String.self, forKey: .goalTitle) ?? ""
+        goalDescription = try c.decodeIfPresent(String.self, forKey: .goalDescription) ?? ""
+        currentPhaseNumber = try c.decodeIfPresent(Int.self, forKey: .currentPhaseNumber) ?? 1
+        userId = try c.decodeIfPresent(String.self, forKey: .userId)
+        interfaceLanguage = try c.decodeIfPresent(String.self, forKey: .interfaceLanguage)
+        createdAt = try c.decodeIfPresent(String.self, forKey: .createdAt)
+        completedAt = try c.decodeIfPresent(String.self, forKey: .completedAt)
     }
 }
 
