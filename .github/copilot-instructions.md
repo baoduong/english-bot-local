@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-A FastAPI backend + iOS app for English pronunciation coaching. Users record voice on iPhone; the backend grades pronunciation, provides per-word color-coded feedback, and manages a spaced repetition learning schedule — all in Vietnamese UI.
+A FastAPI backend + iOS app for English pronunciation coaching. Users record voice on iPhone; the backend grades pronunciation, provides per-word color-coded feedback, and manages an AI-generated curriculum with phase progression tracking — all in Vietnamese UI.
 
 ## Architecture
 

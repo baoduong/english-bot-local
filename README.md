@@ -1,6 +1,6 @@
 # 🎤 English Pronunciation Coach
 
-iOS pronunciation coach app với FastAPI backend — ghi âm, chấm điểm từng từ, và tự động lên lịch ôn tập thông minh.
+iOS pronunciation coach app với FastAPI backend — AI-driven curriculum với luyện phát âm từng câu và điều chỉnh độ khó theo tiến độ.
 
 ---
 

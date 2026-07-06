@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from hypothesis import given, settings, strategies as st
+from hypothesis import HealthCheck, given, settings, strategies as st
 
 from engines import phoneme_alignment
 from analysis.errors import get_target_ipa
@@ -42,7 +42,7 @@ def _expected_phonemes_for_words(words: list[str]) -> dict[str, list[str]]:
 
 
 @pytest.mark.slow
-@settings(max_examples=80)
+@settings(max_examples=80, suppress_health_check=[HealthCheck.too_slow])
 @given(detected=st.lists(PHONEME, min_size=0, max_size=30), words=st.lists(WORD, min_size=1, max_size=8))
 def test_alignment_returns_one_entry_per_cleaned_word(detected: list[str], words: list[str]) -> None:
     expected_text = " ".join(words)
@@ -51,7 +51,7 @@ def test_alignment_returns_one_entry_per_cleaned_word(detected: list[str], words
 
 
 @pytest.mark.slow
-@settings(max_examples=80)
+@settings(max_examples=80, suppress_health_check=[HealthCheck.too_slow])
 @given(detected=st.lists(PHONEME, min_size=0, max_size=30), words=st.lists(WORD, min_size=1, max_size=8))
 def test_alignment_never_assigns_more_detected_phonemes_than_provided(detected: list[str], words: list[str]) -> None:
     expected_text = " ".join(words)
@@ -65,7 +65,7 @@ def test_alignment_never_assigns_more_detected_phonemes_than_provided(detected: 
 
 
 @pytest.mark.slow
-@settings(max_examples=80)
+@settings(max_examples=80, suppress_health_check=[HealthCheck.too_slow])
 @given(detected=st.lists(PHONEME, min_size=0, max_size=30), words=st.lists(WORD, min_size=1, max_size=8))
 def test_alignment_output_is_structurally_consistent_with_expected_ipa(detected: list[str], words: list[str]) -> None:
     expected_text = " ".join(words)

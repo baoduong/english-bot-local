@@ -4,6 +4,8 @@
 /english_learner.db
 /.omo/*
 __pycache__/
+*.pyc
+*.pyo
 /.omo/run-continuation
 
 # Swift Package Manager build artifacts
