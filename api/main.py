@@ -169,7 +169,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="iPhone Gateway API",
     version="1.0.0",
-    summary="Trusted-LAN HTTP gateway replacing the Discord bot transport.",
+    summary="Trusted-LAN HTTP gateway for the iOS pronunciation coach app.",
     description=(
         "OpenAPI contract for the iPhone-native gateway. Covers the full learner "
         "lifecycle: registration, onboarding, curriculum, practice, scoring, progress, "

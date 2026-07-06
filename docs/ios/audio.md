@@ -24,7 +24,7 @@ Why this matters:
 
 - iPhone natively records to `.m4a`, which is already accepted by the backend ingestion path.
 - Mono, 44.1 kHz AAC recordings are easy to transcode into the backend scoring format.
-- Keeping the upload file small reduces Discord / network friction and makes preprocessing faster.
+- Keeping the upload file small reduces network friction and makes preprocessing faster.
 
 Implementation note:
 

@@ -2,9 +2,9 @@ openapi: 3.1.0
 info:
   title: iPhone Gateway API
   version: 1.0.0
-  summary: Trusted-LAN HTTP and WebSocket gateway replacing the Discord bot transport.
+  summary: Trusted-LAN HTTP and WebSocket gateway for the iOS pronunciation coach app.
   description: |
-    OpenAPI contract for the iPhone-native gateway that replaces the Discord bot interface.
+    OpenAPI contract for the iPhone-native gateway.
 
     Scope covers the full learner lifecycle: registration, onboarding conversation,
     goal confirmation, curriculum generation, practice sessions, audio scoring,
@@ -74,7 +74,7 @@ paths:
     post:
       tags: [Onboarding]
       summary: Start onboarding conversation
-      description: Maps the Discord `!go` flow for new users into a dedicated onboarding session.
+      description: Starts a new onboarding session for first-time users.
       operationId: startOnboarding
       requestBody:
         required: true
@@ -858,7 +858,7 @@ paths:
     get:
       tags: [Progress]
       summary: Get learner progress overview
-      description: Mirrors the Discord `!me` summary.
+      description: Returns the learner progress overview.
       operationId: getProgress
       parameters:
         - $ref: '#/components/parameters/UserId'

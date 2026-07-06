@@ -1,6 +1,6 @@
 """
 Users router — /users
-Handles learner registration (UUID-based, replaces Discord snowflake).
+Handles learner registration (UUID-based).
 """
 from __future__ import annotations
 

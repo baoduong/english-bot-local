@@ -1,7 +1,9 @@
 # Backend Session Retirement: Discord → iPhone API Gateway
 
+> **HISTORICAL DOCUMENT:** The Discord bot has been removed. This document describes the migration analysis that led to the current iOS-only architecture. Kept for historical context.
+
 **Document type:** Architecture Analysis  
-**Status:** Authoritative — produced by Task 1 source-code audit  
+**Status:** Historical — Discord bot code removed; migration complete  
 **Feeds into:** Tasks 2 (endpoint schema), 4 (audio pipeline), 5 (session storage), 6 (auth)
 
 ---

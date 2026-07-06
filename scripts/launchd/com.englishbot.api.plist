@@ -39,7 +39,7 @@
     <key>OLLAMA_MODEL</key>
     <string>gemma4:31b-cloud</string>
     <!-- Load remaining secrets from the project .env at runtime via shell -->
-    <!-- DISCORD_BOT_TOKEN, USE_AZURE_SPEECH, AZURE_SPEECH_KEY, AZURE_SPEECH_REGION -->
+    <!-- USE_AZURE_SPEECH, AZURE_SPEECH_KEY, AZURE_SPEECH_REGION -->
     <!-- are picked up automatically because dotenv is loaded in the app. -->
     <key>PYTHONUNBUFFERED</key>
     <string>1</string>

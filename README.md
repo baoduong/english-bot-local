@@ -1,6 +1,6 @@
-# 🎤 English Pronunciation Bot
+# 🎤 English Pronunciation Coach
 
-Discord bot luyện phát âm tiếng Anh cá nhân hóa — ghi âm, chấm điểm từng từ, và tự động lên lịch ôn tập thông minh.
+iOS pronunciation coach app với FastAPI backend — ghi âm, chấm điểm từng từ, và tự động lên lịch ôn tập thông minh.
 
 ---
 
@@ -10,9 +10,9 @@ Discord bot luyện phát âm tiếng Anh cá nhân hóa — ghi âm, chấm đi
 - **Personalized Curriculum** — AI generates weekly phases with vocabulary, milestones, and practice sentences
 - **Phase Progression** — AI evaluates your performance and decides: advance to next week, repeat, or regenerate content
 - **Mini-context Header** — Shows current week, theme, and progress (📍 Tuần 2 · Code Reviews · 3/12)
-- **Pronunciation Scoring** — Whisper/Azure smart routing với bản đồ màu ANSI trực quan (🟢 đúng / 🟡 chưa chuẩn / 🔴 sai)
-- **Goal Change** — `!goal change` để thiết lập lại mục tiêu học tập và tạo lộ trình mới
-- **Session Persistence** — Trạng thái phiên học được lưu trữ an toàn qua SQLite, không mất khi restart bot
+- **Pronunciation Scoring** — Whisper/Azure smart routing với bản đồ màu trực quan (🟢 đúng / 🟡 chưa chuẩn / 🔴 sai)
+- **Goal Change** — Thiết lập lại mục tiêu học tập và tạo lộ trình mới
+- **Session Persistence** — Trạng thái phiên học được lưu trữ an toàn qua SQLite, không mất khi restart
 
 ---
 
@@ -33,45 +33,10 @@ pip install -r requirements.txt
 ### Cấu hình `.env`
 
 ```env
-# Bắt buộc
-DISCORD_BOT_TOKEN=your_discord_token_here
-
 # --- Azure Speech (tuỳ chọn, chính xác hơn Whisper với accent Việt) ---
 USE_AZURE_SPEECH=false
 AZURE_SPEECH_KEY=your_key_here
 AZURE_SPEECH_REGION=southeastasia
-```
-
-Token Discord lấy tại: https://discord.com/developers/applications
-
-### Chạy bot
-
-```bash
-python app.py
-```
-
-Lần đầu khởi động sẽ mất vài giây để nạp Whisper vào RAM.
-
----
-
-## Cách sử dụng
-
-| Hành động | Kết quả |
-|---|---|
-| Gõ `!go` | Bắt đầu học — kích hoạt onboarding cho user mới, hoặc tiếp tục lộ trình học |
-| Gõ `!skip` | Bỏ qua câu hiện tại |
-| Gõ `!stop` | (Gõ trong phiên) Thoát phiên học giữa chừng |
-| Gõ `!me` | Xem hồ sơ và tiến độ lộ trình học |
-| Gõ `!goal change` | Lưu trữ lộ trình hiện tại và bắt đầu lại quá trình onboarding |
-| Gõ `!help` | Hiển thị hướng dẫn |
-
-### Flow lộ trình học
-
-```
-First !go → AI Onboarding Chat → Goal Confirmation → Week 1 Generated → Practice
-  └─ Voice Recording → Score (Whisper/Azure) → ≥80? → Next sentence
-                                                 └─ <80 → Retry / Word Drill
-  └─ Phase Complete → AI Evaluates → Advance / Repeat / Regenerate → Next Week
 ```
 
 ---
@@ -172,9 +137,9 @@ User state (`userId`, onboarding completion flag, last active tab) is persisted 
 ## Cấu trúc dự án
 
 ```
-app.py                         — Discord event loop, session state, command handlers
-ai_brain.py                    — Whisper/Azure scoring, pre-teaching via Ollama + Edge-TTS
-database.py                    — Backward-compat wrapper (re-exports from db/ package)
+api/
+  main.py                      — FastAPI application entry point
+  routers/                     — Domain routers (users, onboarding, curriculum, practice, progress, health)
 
 db/
   schema.py                    — SQLite table definitions (18 tables)
@@ -217,7 +182,7 @@ Database: `english_learner.db` (SQLite, tự tạo khi chạy lần đầu)
 
 ## iPhone App
 
-Native iOS client thay thế Discord UI, kết nối đến backend qua Wi-Fi.
+Native iOS client kết nối đến FastAPI backend qua Wi-Fi.
 
 ### Yêu cầu
 

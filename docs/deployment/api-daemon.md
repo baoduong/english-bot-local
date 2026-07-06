@@ -86,7 +86,6 @@ mkdir -p /Volumes/BAODUONG/english-bot-local/logs
 
 ```bash
 # /Volumes/BAODUONG/english-bot-local/.env
-DISCORD_BOT_TOKEN=<your_token>
 USE_AZURE_SPEECH=false
 AZURE_SPEECH_KEY=<your_key>
 AZURE_SPEECH_REGION=southeastasia
