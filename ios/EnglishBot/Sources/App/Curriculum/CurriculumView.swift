@@ -12,33 +12,72 @@ public struct CurriculumView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Spacing.xl) {
                 if viewModel.isLoading && viewModel.curriculum == nil {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.top, Spacing.xxl)
+                    VStack(spacing: Spacing.md) {
+                        SkeletonCard(lines: 2)
+                        SkeletonCard(lines: 3)
+                        SkeletonCard(lines: 2)
+                    }
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.top, Spacing.md)
+                } else if viewModel.isGeneratingCurriculum {
+                    VStack(spacing: Spacing.lg) {
+                        ProgressView()
+                            .scaleEffect(1.4)
+                        Text("🔄 Đang tạo lộ trình học...\n(có thể mất 60–90s)")
+                            .font(Font.BotTheme.bodyPrimary)
+                            .foregroundColor(Color.BotTheme.textSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(Spacing.xl)
+                    .frame(maxWidth: .infinity)
                 } else if let error = viewModel.errorMessage {
-                    Text("Error: \(error)")
-                        .foregroundColor(.red)
-                        .padding()
+                    VStack(spacing: Spacing.md) {
+                        HStack(spacing: Spacing.sm) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(Color.BotTheme.scorePoor)
+                            Text(error)
+                                .font(Font.BotTheme.bodyPrimary)
+                                .foregroundColor(Color.BotTheme.textPrimary)
+                        }
+                        .padding(Spacing.md)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
+                                .fill(Color.BotTheme.scorePoor.opacity(0.15))
+                        )
+
+                        Button {
+                            Task { await viewModel.load() }
+                        } label: {
+                            Label("Thử lại", systemImage: "arrow.clockwise")
+                                .font(Font.BotTheme.bodyPrimary.weight(.semibold))
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .padding(.horizontal, Spacing.md)
                 } else if let curriculum = viewModel.curriculum, let phase = viewModel.activePhase {
                     // Header
                     VStack(alignment: .leading, spacing: Spacing.sm) {
-                        Text(curriculum.goalTitle)
-                            .font(Font.BotTheme.heading2)
-                            .foregroundColor(Color.BotTheme.textPrimary)
+                        ProgressChip(text: "Phase \(phase.phaseNumber)", systemIcon: "map.fill", tinted: true)
                         
-                        Text("Phase \(phase.phaseNumber)")
-                            .font(Font.BotTheme.heading3)
-                            .foregroundColor(Color.BotTheme.primary)
+                        Text(curriculum.goalTitle)
+                            .font(Font.BotTheme.heading1)
+                            .foregroundColor(Color.BotTheme.textPrimary)
+                            .padding(.top, Spacing.xs)
                         
                         Text(phase.theme)
-                            .font(Font.BotTheme.bodyPrimary)
+                            .font(Font.BotTheme.bodySecondary)
                             .foregroundColor(Color.BotTheme.textSecondary)
-                        
-                        ProgressChip(text: "Phase \(phase.phaseNumber)", icon: "📍")
                     }
+                    .padding(Spacing.lg)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                            .fill(Color.BotTheme.accentSoft)
+                    )
                     .padding(.horizontal, Spacing.md)
                     
-                    // Milestones — what user will achieve after completing this phase
+                    // Milestones
                     if let milestones = phase.milestones, !milestones.isEmpty {
                         VStack(alignment: .leading, spacing: Spacing.md) {
                             Text("🎯 Sau khi hoàn thành phase này, bạn sẽ:")
@@ -65,8 +104,11 @@ public struct CurriculumView: View {
                             }
                         }
                     } else if viewModel.isLoading {
-                        ProgressView()
-                            .frame(maxWidth: .infinity, alignment: .center)
+                        VStack(spacing: Spacing.md) {
+                            SkeletonCard(lines: 2)
+                            SkeletonCard(lines: 2)
+                        }
+                        .padding(.horizontal, Spacing.md)
                     }
                 }
             }
@@ -128,11 +170,10 @@ struct SentenceRow: View {
                 }
             }
             
-            Spacer()
+            Spacer(minLength: 0)
         }
         .padding(Spacing.md)
-        .background(Color.BotTheme.backgroundSecondary)
-        .cornerRadius(Spacing.md)
+        .cardStyle(radius: Radius.lg)
         .padding(.horizontal, Spacing.md)
     }
 }
@@ -161,7 +202,6 @@ struct MilestoneCard: View {
             Spacer(minLength: 0)
         }
         .padding(Spacing.md)
-        .background(Color.BotTheme.backgroundSecondary)
-        .cornerRadius(Spacing.md)
+        .cardStyle(radius: Radius.lg)
     }
 }

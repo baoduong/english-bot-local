@@ -33,6 +33,11 @@ public struct EnglishBotApp: View {
                     .onAppear { userId = UUID().uuidString }
             } else if !onboardingDone {
                 onboardingFlow
+                    .task {
+                        if let _ = try? await APIClient.shared.getCurrentCurriculum(userId: userId) {
+                            onboardingDone = true
+                        }
+                    }
             } else {
                 mainTabView
             }

@@ -10,7 +10,9 @@ public class OnboardingViewModel: ObservableObject {
     @Published public var pendingGoal: GoalSynthesis?
     @Published public var synthesisConfirmed = false
     @Published public var errorMessage: String?
-    
+
+    @AppStorage("eb_onboardingDone") private var onboardingDone: Bool = false
+
     private let apiClient: APIClient
     private let wsClient: WebSocketClient
     private let userId: String
@@ -29,6 +31,9 @@ public class OnboardingViewModel: ObservableObject {
             if let synthesis = response.pendingGoalSynthesis {
                 self.pendingGoal = synthesis
             }
+        } catch APIError.httpError(409) {
+            onboardingDone = true
+            NotificationCenter.default.post(name: .onboardingConfirmed, object: nil)
         } catch {
             self.errorMessage = error.localizedDescription
         }
@@ -58,24 +63,7 @@ public class OnboardingViewModel: ObservableObject {
         do {
             let response = try await apiClient.confirmOnboarding(userId: userId, confirmed: accepted)
             if response.status == "confirmed" {
-                if response.loading?.blocking == true {
-                    isTyping = false
-                    isLoading = true
-
-                    for _ in 0..<20 {
-                        try? await Task.sleep(nanoseconds: 3_000_000_000)
-
-                        do {
-                            let _ = try await apiClient.getCurrentCurriculum(userId: userId)
-                            break
-                        } catch {
-                            continue
-                        }
-                    }
-
-                    isLoading = false
-                }
-
+                onboardingDone = true
                 self.synthesisConfirmed = true
                 NotificationCenter.default.post(name: .onboardingConfirmed, object: nil)
             } else {
