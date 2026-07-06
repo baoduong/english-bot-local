@@ -1,5 +1,9 @@
 # Start English Bot Backend on Windows
 
+param(
+    [int]$Port = 8080
+)
+
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $RepoRoot
@@ -11,8 +15,8 @@ if (-not $LocalIP) {
 
 Write-Host "=== Starting English Bot BE ===" -ForegroundColor Cyan
 Write-Host "Local IP:  $LocalIP" -ForegroundColor Green
-Write-Host "iPhone URL: http://${LocalIP}:8000" -ForegroundColor Green
-Write-Host "Health:    http://localhost:8000/health"
+Write-Host "iPhone URL: http://${LocalIP}:${Port}" -ForegroundColor Green
+Write-Host "Health:    http://localhost:${Port}/health"
 Write-Host ""
 
 try {
@@ -23,4 +27,4 @@ try {
     exit 1
 }
 
-.\venv\Scripts\python.exe -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+.\venv\Scripts\python.exe -m uvicorn api.main:app --host 0.0.0.0 --port $Port

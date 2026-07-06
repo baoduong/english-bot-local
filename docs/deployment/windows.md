@@ -22,7 +22,7 @@ cd C:\path\to\english-bot-local
 .\scripts\windows-setup.ps1
 ```
 
-The script installs: Chocolatey → Python 3.11 → ffmpeg → git → espeak-ng (manual prompt) → Ollama (manual prompt) → Python venv + pip packages → Windows Firewall rule.
+The script installs: Chocolatey → Python 3.11 → ffmpeg → git → espeak-ng (manual prompt) → Ollama (manual prompt) → Python venv + pip packages → Windows Firewall rule for port 8080.
 
 ---
 
@@ -86,10 +86,12 @@ py -3.11 -m venv venv
 .\venv\Scripts\pip.exe install -r requirements.txt
 ```
 
-### 7. Open Windows Firewall for port 8000
+### 7. Open Windows Firewall for port 8080
 
 ```powershell
-New-NetFirewallRule -DisplayName "EnglishBot BE" -Direction Inbound -LocalPort 8000 -Protocol TCP -Action Allow
+# Port 8000 is often reserved by Windows Hyper-V/WSL2/Docker.
+# Default to 8080 which is rarely reserved.
+New-NetFirewallRule -DisplayName "EnglishBot BE 8080" -Direction Inbound -LocalPort 8080 -Protocol TCP -Action Allow
 ```
 
 ---
@@ -103,7 +105,7 @@ New-NetFirewallRule -DisplayName "EnglishBot BE" -Direction Inbound -LocalPort 8
 The script:
 1. Detects your local Wi-Fi IP and prints the iPhone URL
 2. Verifies Ollama is running (exits with error if not)
-3. Starts uvicorn on `0.0.0.0:8000`
+3. Starts uvicorn on `0.0.0.0:8080` (default — can override with `-Port 9000` etc.)
 
 Wait for the log line `Whisper model loaded` before opening the iOS app.
 
@@ -146,7 +148,7 @@ Logs are written to `logs\uvicorn.log` and `logs\uvicorn.err.log` in the repo ro
    ```powershell
    (Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias "Wi-Fi").IPAddress
    ```
-2. In the iOS app → Settings → enter `http://<your-ip>:8000`
+2. In the iOS app → Settings → enter `http://<your-ip>:8080`
 
 Both options require the iPhone and Windows PC to be on the same Wi-Fi network.
 
@@ -178,10 +180,10 @@ Verify with `ollama list` — it should return the model list without error.
 
 1. Confirm both devices are on the same Wi-Fi network
 2. Check the firewall rule exists:
-   ```powershell
-   Get-NetFirewallRule -DisplayName "EnglishBot BE"
-   ```
-3. Try pinging the Windows IP from iPhone (Settings → Wi-Fi → tap network → note IP, then test from a browser: `http://<windows-ip>:8000/health`)
+    ```powershell
+    Get-NetFirewallRule -DisplayName "EnglishBot BE 8080"
+    ```
+3. Try pinging the Windows IP from iPhone (Settings → Wi-Fi → tap network → note IP, then test from a browser: `http://<windows-ip>:8080/health`)
 4. Temporarily disable Windows Defender Firewall to isolate the issue
 
 ### Slow inference (~2–5 s per audio scoring)
@@ -201,6 +203,66 @@ On Windows without NVIDIA GPU, PyTorch defaults to CPU. This is expected and ful
 ### Port 8000 already in use
 
 ```powershell
-netstat -ano | findstr :8000
+netstat -ano | findstr :8080
 taskkill /PID <pid> /F
 ```
+
+---
+
+## Troubleshooting Port Issues
+
+### WSAEACCES / Socket error 10013 on backend start
+
+Windows reserves port ranges for Hyper-V, WSL2, and Docker Desktop. Port 8000 is commonly reserved. Symptoms:
+
+```
+ERROR: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+```
+
+**Fix**: Use port 8080 (default in updated scripts). If 8080 also fails, try 9000 or 8888.
+
+Override port when running:
+```powershell
+.\scripts\windows-run.ps1 -Port 9000
+```
+
+Check reserved ranges:
+```powershell
+netsh interface ipv4 show excludedportrange protocol=tcp
+```
+
+If you MUST use port 8000, reset Hyper-V exclusions (requires reboot):
+```powershell
+net stop winnat
+netsh int ipv4 set dynamicport tcp start=49152 num=16384
+net start winnat
+Restart-Computer
+```
+
+**Not recommended** — affects WSL2/Docker Desktop networking.
+
+---
+
+### `No module named uvicorn` when running backend
+
+**Cause**: Packages installed to system Python, not venv.
+
+Verify:
+```powershell
+.\venv\Scripts\pip.exe list | Select-String uvicorn
+# If empty → packages went to system Python
+```
+
+**Fix**: Reinstall using explicit venv pip path (not activated venv shortcuts):
+```powershell
+.\venv\Scripts\python.exe -m pip install --upgrade pip
+.\venv\Scripts\pip.exe install -r requirements.txt
+```
+
+**Golden rule on Windows PowerShell**: Always use full venv paths:
+
+| Wrong (system) | Correct (venv) |
+|---|---|
+| `pip install X` | `.\venv\Scripts\pip.exe install X` |
+| `python script.py` | `.\venv\Scripts\python.exe script.py` |
+| `uvicorn ...` | `.\venv\Scripts\python.exe -m uvicorn ...` |

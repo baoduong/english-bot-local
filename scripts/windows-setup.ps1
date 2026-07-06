@@ -54,9 +54,11 @@ py -3.11 -m venv venv
 .\venv\Scripts\python.exe -m pip install --upgrade pip
 .\venv\Scripts\pip.exe install -r requirements.txt
 
-# 9. Firewall rule for port 8000
-Write-Host "Adding Windows Firewall rule for port 8000..." -ForegroundColor Yellow
-New-NetFirewallRule -DisplayName "EnglishBot BE" -Direction Inbound -LocalPort 8000 -Protocol TCP -Action Allow -ErrorAction SilentlyContinue
+# 9. Firewall rule for port 8080
+Write-Host "Adding Windows Firewall rule for port 8080..." -ForegroundColor Yellow
+# Port 8000 is often reserved by Windows Hyper-V/WSL2/Docker.
+# Default to 8080 which is rarely reserved.
+New-NetFirewallRule -DisplayName "EnglishBot BE 8080" -Direction Inbound -LocalPort 8080 -Protocol TCP -Action Allow -ErrorAction SilentlyContinue
 
 # 10. Optional: Bonjour Print Services for iOS auto-discovery
 Write-Host "For iOS Bonjour auto-discovery, install Apple Bonjour Print Services:" -ForegroundColor Yellow

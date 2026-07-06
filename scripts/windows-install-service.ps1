@@ -7,7 +7,7 @@ if (!(Get-Command nssm -ErrorAction SilentlyContinue)) {
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Python = "$RepoRoot\venv\Scripts\python.exe"
-$UvicornArgs = "-m uvicorn api.main:app --host 0.0.0.0 --port 8000"
+$UvicornArgs = "-m uvicorn api.main:app --host 0.0.0.0 --port 8080"
 
 nssm install EnglishBotBE $Python $UvicornArgs
 nssm set EnglishBotBE AppDirectory $RepoRoot
