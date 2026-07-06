@@ -13,7 +13,7 @@ public struct SettingsView: View {
 
     public var body: some View {
         Form {
-            Section("Backend URL") {
+            Section {
                 TextField("http://192.168.1.x:8000", text: $baseURL)
                     #if canImport(UIKit)
                     .keyboardType(UIKeyboardType.URL)
@@ -25,19 +25,24 @@ public struct SettingsView: View {
                     if isTesting {
                         ProgressView()
                     } else {
-                        Text("Test Connection")
+                        Label("Test Connection", systemImage: "network")
                     }
                 }
                 .disabled(isTesting)
 
                 if let result = testResult {
-                    Text(result)
-                        .foregroundColor(result.contains("✅") ? .green : .red)
+                    HStack(spacing: Spacing.sm) {
+                        Image(systemName: result.contains("✅") ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        Text(result.replacingOccurrences(of: "✅ ", with: "").replacingOccurrences(of: "❌ ", with: ""))
+                    }
+                    .foregroundColor(result.contains("✅") ? Color.BotTheme.scoreExcellent : Color.BotTheme.scorePoor)
                 }
+            } header: {
+                Label("Backend URL", systemImage: "server.rack")
             }
 
-            Section("Discovery") {
-                Button("Re-discover via Bonjour") {
+            Section {
+                Button(action: {
                     Task {
                         if let url = await BonjourDiscovery().discover(timeout: 5.0) {
                             baseURL = url.absoluteString
@@ -46,7 +51,11 @@ public struct SettingsView: View {
                             testResult = "❌ No backend found on network"
                         }
                     }
+                }) {
+                    Label("Re-discover via Bonjour", systemImage: "magnifyingglass")
                 }
+            } header: {
+                Label("Discovery", systemImage: "antenna.radiowaves.left.and.right")
             }
         }
         .navigationTitle("Settings")

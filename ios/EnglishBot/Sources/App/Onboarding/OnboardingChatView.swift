@@ -47,13 +47,20 @@ public struct OnboardingChatView: View {
             }
             
             Divider()
+                .overlay(Color.BotTheme.border)
             
             // Input Area
-            HStack {
+            HStack(spacing: Spacing.md) {
                 TextField("Type a message...", text: $inputText)
-                    .padding(Spacing.sm)
-                    .background(Color.BotTheme.backgroundSecondary)
-                    .cornerRadius(Spacing.sm)
+                    .font(Font.BotTheme.bodyPrimary)
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, 10)
+                    .background(Color.BotTheme.backgroundTertiary)
+                    .cornerRadius(Radius.md)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Radius.md)
+                            .strokeBorder(Color.BotTheme.border, lineWidth: 0.5)
+                    )
                     .disabled(viewModel.isTyping || viewModel.pendingGoal != nil)
                 
                 Button(action: {
@@ -65,24 +72,50 @@ public struct OnboardingChatView: View {
                     }
                 }) {
                     Image(systemName: "paperplane.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(inputText.isEmpty ? Color.BotTheme.textTertiary : Color.BotTheme.primary)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(inputText.isEmpty ? Color.BotTheme.textTertiary : .white)
+                        .frame(width: 40, height: 40)
+                        .background(
+                            Group {
+                                if inputText.isEmpty {
+                                    Color.BotTheme.backgroundTertiary
+                                } else {
+                                    Color.BotTheme.accentGradient
+                                }
+                            }
+                        )
+                        .clipShape(Circle())
                 }
                 .disabled(inputText.isEmpty || viewModel.isTyping || viewModel.pendingGoal != nil)
+                .buttonStyle(.pressable)
             }
             .padding(Spacing.md)
             .background(Color.BotTheme.backgroundMain)
         }
         .overlay(alignment: .top) {
             if let error = viewModel.errorMessage {
-                Text("Error: \(error)")
-                    .font(.caption)
-                    .foregroundColor(.white)
-                    .padding(8)
-                    .background(Color.red.cornerRadius(8))
-                    .padding(.top, 50)
+                HStack(spacing: Spacing.sm) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(Color.BotTheme.scorePoor)
+                    Text(error)
+                        .font(Font.BotTheme.bodySecondary)
+                        .foregroundColor(Color.BotTheme.textPrimary)
+                }
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.sm)
+                .background(Color.BotTheme.backgroundSecondary)
+                .cornerRadius(Radius.md)
+                .overlay(
+                    RoundedRectangle(cornerRadius: Radius.md)
+                        .strokeBorder(Color.BotTheme.border.opacity(0.6), lineWidth: 0.5)
+                )
+                .shadow(color: Color.BotTheme.shadowColor, radius: 8, x: 0, y: 4)
+                .padding(.horizontal, Spacing.md)
+                .padding(.top, Spacing.md)
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
         }
+        .animation(.easeOut(duration: 0.2), value: viewModel.errorMessage != nil)
         .background(Color.BotTheme.backgroundMain)
         .navigationTitle("Onboarding")
         #if os(iOS)
@@ -105,6 +138,7 @@ public struct OnboardingChatView: View {
             Text(goal.goalTitle)
                 .font(Font.BotTheme.bodyPrimary)
                 .bold()
+                .foregroundColor(Color.BotTheme.textPrimary)
             
             Text(goal.goalDescription)
                 .font(Font.BotTheme.bodySecondary)
@@ -121,31 +155,32 @@ public struct OnboardingChatView: View {
                     Task { await viewModel.confirmGoal(accepted: false) }
                 }) {
                     Text("Reject")
-                        // .font(Font.BotTheme.button) // Doesn't exist, using caption instead
-                        .font(Font.BotTheme.caption)
-                        .foregroundColor(.red)
+                        .font(Font.BotTheme.heading3)
+                        .foregroundColor(Color.BotTheme.textSecondary)
                         .frame(maxWidth: .infinity)
-                        .padding(Spacing.sm)
-                        .background(Color.red.opacity(0.1))
-                        .cornerRadius(Spacing.sm)
+                        .padding(.vertical, Spacing.sm)
+                        .background(Color.BotTheme.backgroundTertiary)
+                        .cornerRadius(Radius.md)
                 }
+                .buttonStyle(.pressable)
                 
                 Button(action: {
                     Task { await viewModel.confirmGoal(accepted: true) }
                 }) {
                     Text("Confirm")
-                        .font(Font.BotTheme.caption)
+                        .font(Font.BotTheme.heading3)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(Spacing.sm)
-                        .background(Color.BotTheme.primary)
-                        .cornerRadius(Spacing.sm)
+                        .padding(.vertical, Spacing.sm)
+                        .background(Color.BotTheme.accentGradient)
+                        .cornerRadius(Radius.md)
                 }
+                .buttonStyle(.pressable)
             }
+            .padding(.top, Spacing.xs)
         }
-        .padding(Spacing.md)
-        .background(Color.BotTheme.backgroundSecondary)
-        .cornerRadius(Spacing.md)
+        .padding(Spacing.lg)
+        .cardStyle()
         .padding(.horizontal, Spacing.md)
     }
     

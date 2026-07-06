@@ -51,10 +51,11 @@ public struct WordDrillView: View {
                     Text("Listen")
                 }
                 .padding()
-                .background(Color.BotTheme.backgroundSecondary)
-                .cornerRadius(Spacing.sm)
+                .background(Color.BotTheme.backgroundTertiary)
+                .cornerRadius(Radius.md)
             }
             .foregroundColor(Color.BotTheme.primary)
+            .buttonStyle(.pressable)
             
             // Feedback Area
             if viewModel.state == .uploading {
@@ -72,8 +73,10 @@ public struct WordDrillView: View {
                     }
                 }
                 .padding()
-                .background(Color.BotTheme.backgroundSecondary)
-                .cornerRadius(Spacing.md)
+                .cardStyle(radius: Radius.lg)
+                .onAppear {
+                    Haptics.forScore(result.overallScore)
+                }
                 
                 if let coaching = viewModel.coachingHint {
                     CoachingHintView(
@@ -102,9 +105,10 @@ public struct WordDrillView: View {
                         .foregroundColor(.white)
                         .padding()
                         .frame(maxWidth: .infinity)
-                        .background(Color.BotTheme.primary)
-                        .cornerRadius(Spacing.md)
+                        .background(Color.BotTheme.accentGradient)
+                        .cornerRadius(Radius.md)
                 }
+                .buttonStyle(.pressable)
             } else if viewModel.state == .uploading {
                 LoadingIndicator()
             } else {

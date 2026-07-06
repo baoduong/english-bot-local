@@ -89,18 +89,14 @@ public struct CoachingHintView: View {
                     .foregroundColor(.white)
                     .padding()
                     .frame(maxWidth: .infinity)
-                    .background(Color.BotTheme.primary)
-                    .cornerRadius(Spacing.md)
+                    .background(Color.BotTheme.accentGradient)
+                    .cornerRadius(Radius.md)
             }
+            .buttonStyle(.pressable)
             .padding(.top, Spacing.sm)
         }
         .padding()
-        .background(Color.BotTheme.primary.opacity(0.08))
-        .cornerRadius(Spacing.md)
-        .overlay(
-            RoundedRectangle(cornerRadius: Spacing.md)
-                .stroke(Color.BotTheme.primary, lineWidth: 1)
-        )
+        .cardStyle(radius: Radius.lg)
         .onChange(of: hint.action) { _ in resetScratchFlow() }
         .onChange(of: hint.scaffoldWord) { _ in resetScratchFlow() }
         .onChange(of: hint.syllables) { _ in resetScratchFlow() }
@@ -140,13 +136,10 @@ public struct CoachingHintView: View {
                     }
                     .padding()
                     .frame(maxWidth: .infinity)
-                    .background(Color.BotTheme.backgroundMain)
-                    .cornerRadius(Spacing.sm)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Spacing.sm)
-                            .stroke(Color.BotTheme.primary.opacity(0.3), lineWidth: 1)
-                    )
+                    .background(Color.BotTheme.backgroundTertiary)
+                    .cornerRadius(Radius.md)
                 }
+                .buttonStyle(.pressable)
 
                 scratchPracticeSection(target: scaffoldWord, prompt: "Thử ghi âm '\(scaffoldWord)'")
             }
@@ -189,13 +182,10 @@ public struct CoachingHintView: View {
                                 }
                                 .padding(.horizontal, Spacing.md)
                                 .padding(.vertical, Spacing.sm)
-                                .background(Color.BotTheme.backgroundMain)
-                                .cornerRadius(Spacing.sm)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: Spacing.sm)
-                                        .stroke(index == breakDownIndex ? Color.BotTheme.primary : Color.BotTheme.primary.opacity(0.3), lineWidth: 1)
-                                )
+                                .background(index == breakDownIndex ? Color.BotTheme.primary.opacity(0.1) : Color.BotTheme.backgroundTertiary)
+                                .cornerRadius(Radius.sm)
                             }
+                            .buttonStyle(.pressable)
 
                             if index < breakDownTargets.count - 1 {
                                 Image(systemName: "arrow.right")
@@ -332,8 +322,10 @@ public struct CoachingHintView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(tone.color.opacity(0.12))
-        .cornerRadius(Spacing.sm)
+        .cardStyle(radius: Radius.lg, elevated: false, fill: tone.color.opacity(0.12))
+        .onAppear {
+            Haptics.forScore(result.overallScore)
+        }
     }
 
     private func handleScratchRecordTap(for target: String) {

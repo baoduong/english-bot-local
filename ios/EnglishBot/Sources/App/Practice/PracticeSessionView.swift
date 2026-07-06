@@ -73,8 +73,8 @@ private struct SentencePracticeView: View {
     private var phaseCompleteView: some View {
         VStack(spacing: Spacing.xl) {
             Text("🎉 Phase Complete!")
-                .font(Font.BotTheme.heading1)
-                .foregroundColor(Color.BotTheme.scoreExcellent)
+                .font(Font.BotTheme.display)
+                .foregroundStyle(Color.BotTheme.accentGradient)
 
             Text("Bạn đã hoàn thành phase này!")
                 .font(Font.BotTheme.bodyPrimary)
@@ -86,14 +86,13 @@ private struct SentencePracticeView: View {
                     Text("Điểm trung bình")
                         .font(Font.BotTheme.bodySecondary)
                         .foregroundColor(Color.BotTheme.textSecondary)
-                    Text(String(format: "%.2f", progress.avgScore))
-                        .font(Font.BotTheme.heading2)
-                        .foregroundColor(Color.BotTheme.textPrimary)
+                    Text(String(format: "%.1f", progress.avgScore))
+                        .font(Font.BotTheme.scoreLarge)
+                        .foregroundColor(scoreColor(Int(progress.avgScore)))
                 }
                 .padding()
                 .frame(maxWidth: .infinity)
-                .background(Color.BotTheme.backgroundSecondary)
-                .cornerRadius(Spacing.md)
+                .cardStyle(radius: Radius.lg)
             }
 
             if viewModel.isAdvancingPhase {
@@ -109,9 +108,10 @@ private struct SentencePracticeView: View {
                         .foregroundColor(.white)
                         .padding()
                         .frame(maxWidth: .infinity)
-                        .background(Color.BotTheme.primary)
-                        .cornerRadius(Spacing.md)
+                        .background(Color.BotTheme.accentGradient)
+                        .cornerRadius(Radius.md)
                 }
+                .buttonStyle(.pressable)
                 .disabled(viewModel.isAdvancingPhase)
             }
 
@@ -163,10 +163,11 @@ private struct SentencePracticeView: View {
                                 Text("Nghe")
                             }
                             .padding()
-                            .background(Color.BotTheme.backgroundSecondary)
-                            .cornerRadius(Spacing.sm)
+                            .background(Color.BotTheme.backgroundTertiary)
+                            .cornerRadius(Radius.md)
                         }
                         .foregroundColor(Color.BotTheme.primary)
+                        .buttonStyle(.pressable)
 
                         if let slowURL = viewModel.slowSampleAudioURL {
                             Button(action: {
@@ -177,10 +178,11 @@ private struct SentencePracticeView: View {
                                     Text("Nghe chậm")
                                 }
                                 .padding()
-                                .background(Color.BotTheme.backgroundSecondary)
-                                .cornerRadius(Spacing.sm)
+                                .background(Color.BotTheme.backgroundTertiary)
+                                .cornerRadius(Radius.md)
                             }
                             .foregroundColor(Color.BotTheme.primary)
+                            .buttonStyle(.pressable)
                         }
                     }
 
@@ -210,9 +212,10 @@ private struct SentencePracticeView: View {
                         .foregroundColor(.white)
                         .padding()
                         .frame(maxWidth: .infinity)
-                        .background(Color.BotTheme.primary)
-                        .cornerRadius(Spacing.md)
+                        .background(Color.BotTheme.accentGradient)
+                        .cornerRadius(Radius.md)
                 }
+                .buttonStyle(.pressable)
             } else if viewModel.state == .uploading {
                 LoadingIndicator()
             } else {
@@ -284,6 +287,12 @@ private struct SentencePracticeView: View {
         )
     }
     
+    private func scoreColor(_ score: Int) -> Color {
+        if score >= 80 { return Color.BotTheme.scoreExcellent }
+        if score >= 60 { return Color.BotTheme.scoreAverage }
+        return Color.BotTheme.scorePoor
+    }
+    
     private func feedbackView(result: ScoringResult) -> some View {
         let header = headerForOutcome(result: result, nextAction: viewModel.nextAction, consecutive: viewModel.consecutivePasses)
         let failingTargetWords = result.wordScores.filter { $0.accuracy < 75 }
@@ -300,8 +309,8 @@ private struct SentencePracticeView: View {
             }
             
             Text("Score: \(result.overallScore)")
-                .font(Font.BotTheme.heading2)
-                .foregroundColor(Color.BotTheme.textPrimary)
+                .font(Font.BotTheme.scoreLarge)
+                .foregroundColor(scoreColor(result.overallScore))
             
             if header.showTargetWords && !failingTargetWords.isEmpty {
                 VStack(alignment: .leading, spacing: Spacing.xs) {
@@ -316,7 +325,7 @@ private struct SentencePracticeView: View {
                                 .padding(.horizontal, Spacing.sm)
                                 .padding(.vertical, Spacing.xs)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: Spacing.sm)
+                                    RoundedRectangle(cornerRadius: Radius.sm)
                                         .stroke(Color.BotTheme.scorePoor, lineWidth: 1.5)
                                 )
                         }
@@ -367,7 +376,7 @@ private struct SentencePracticeView: View {
                     .padding()
                     .frame(maxWidth: .infinity)
                     .background(Color.BotTheme.scoreAverage.opacity(0.15))
-                    .cornerRadius(Spacing.md)
+                    .cornerRadius(Radius.md)
                 } else if viewModel.consecutivePasses >= 2 {
                     Text("✅ 2/2 — Mastered!")
                         .font(Font.BotTheme.heading3)
@@ -375,7 +384,7 @@ private struct SentencePracticeView: View {
                         .padding()
                         .frame(maxWidth: .infinity)
                         .background(Color.BotTheme.scoreExcellent.opacity(0.15))
-                        .cornerRadius(Spacing.md)
+                        .cornerRadius(Radius.md)
                 }
             }
             
@@ -442,8 +451,10 @@ private struct SentencePracticeView: View {
             }
         }
         .padding()
-        .background(Color.BotTheme.backgroundSecondary)
-        .cornerRadius(Spacing.md)
+        .cardStyle(radius: Radius.lg)
+        .onAppear {
+            Haptics.forScore(result.overallScore)
+        }
     }
 
     private func scoreChip(title: String, score: Int) -> some View {
@@ -458,7 +469,7 @@ private struct SentencePracticeView: View {
             .padding(.horizontal, Spacing.sm)
             .padding(.vertical, 4)
             .background(color)
-            .cornerRadius(4)
+            .cornerRadius(Radius.sm)
     }
 }
 
@@ -480,7 +491,7 @@ private struct TipCard: View {
                     .padding(.horizontal, Spacing.sm)
                     .padding(.vertical, Spacing.xs)
                     .background(scoreColor)
-                    .cornerRadius(Spacing.sm)
+                    .cornerRadius(Radius.sm)
                 
                 if let label = wordScore.errorLabel {
                     Text(label)
@@ -547,8 +558,7 @@ private struct TipCard: View {
         }
         .padding(Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.BotTheme.backgroundMain)
-        .cornerRadius(Spacing.sm)
+        .cardStyle(radius: Radius.lg)
     }
 }
 

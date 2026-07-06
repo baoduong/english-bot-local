@@ -15,12 +15,28 @@ public struct ProgressDashboardView: View {
         ScrollView {
             VStack(spacing: Spacing.xl) {
                 if viewModel.isLoading {
-                    LoadingIndicator()
-                        .padding(.top, 100)
+                    VStack(alignment: .leading, spacing: Spacing.xl) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: Spacing.xs) {
+                                SkeletonView(cornerRadius: Radius.sm)
+                                    .frame(width: 100, height: 16)
+                                SkeletonView(cornerRadius: Radius.sm)
+                                    .frame(width: 180, height: 32)
+                            }
+                            Spacer()
+                            SkeletonView(cornerRadius: Radius.sm)
+                                .frame(width: 60, height: 40)
+                        }
+                        SkeletonCard(lines: 2)
+                        SkeletonCard(lines: 4)
+                    }
+                    .padding(.top, Spacing.lg)
                 } else if let progress = viewModel.progress {
+                    let hasData = progress.curriculum != nil || !progress.recentWordScores.isEmpty || (progress.phaseProgress != nil && !progress.phaseProgress!.strugglingWords.isEmpty)
+                    
                     // Profile Header
-                    HStack {
-                        VStack(alignment: .leading) {
+                    HStack(alignment: .center) {
+                        VStack(alignment: .leading, spacing: Spacing.xs) {
                             Text("Welcome back,")
                                 .font(Font.BotTheme.bodySecondary)
                                 .foregroundColor(Color.BotTheme.textSecondary)
@@ -31,13 +47,18 @@ public struct ProgressDashboardView: View {
                                 .truncationMode(.middle)
                         }
                         Spacer()
-                        VStack(alignment: .trailing) {
-                            Text("🔥 \(progress.user.streakCount) day streak")
-                                .font(Font.BotTheme.caption)
-                                .foregroundColor(Color.BotTheme.primary)
-                            Text("Level \(progress.user.currentLevel)")
-                                .font(Font.BotTheme.caption)
-                                .foregroundColor(Color.BotTheme.textSecondary)
+                        VStack(alignment: .trailing, spacing: Spacing.xs) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "flame.fill")
+                                    .foregroundColor(Color.BotTheme.primary)
+                                Text("\(progress.user.streakCount)")
+                                    .font(Font.BotTheme.numeric)
+                                    .foregroundColor(Color.BotTheme.textPrimary)
+                                Text("ngày")
+                                    .font(Font.BotTheme.caption)
+                                    .foregroundColor(Color.BotTheme.textSecondary)
+                            }
+                            ProgressChip(text: "Level \(progress.user.currentLevel)", systemIcon: "star.fill", tinted: true)
                         }
                         
                         // Reset Goal menu
@@ -60,65 +81,116 @@ public struct ProgressDashboardView: View {
                         }
                     }
                     
-                    // Current Curriculum Card
-                    if let curriculum = progress.curriculum, let phase = progress.phaseProgress {
-                        VStack(alignment: .leading, spacing: Spacing.md) {
-                            Text("Phase \(curriculum.currentPhaseNumber): \(curriculum.goalTitle)")
-                                .font(Font.BotTheme.heading2)
-                                .foregroundColor(Color.BotTheme.textPrimary)
-                            
-                            ProgressChip(text: "\(phase.mastered)/\(phase.total) Mastered", icon: "🏆")
-                            
-                            HStack {
-                                Text("Avg Score: \(Int(phase.avgScore))")
-                                    .font(Font.BotTheme.caption)
-                                    .foregroundColor(Color.BotTheme.textSecondary)
-                                Spacer()
-                            }
-                        }
-                        .padding()
-                        .background(Color.BotTheme.backgroundSecondary)
-                        .cornerRadius(Spacing.md)
-                    }
-                    
-                    // Recent Scores
-                    if !progress.recentWordScores.isEmpty {
-                        VStack(alignment: .leading, spacing: Spacing.md) {
-                            Text("Recent Words")
-                                .font(Font.BotTheme.heading2)
-                                .foregroundColor(Color.BotTheme.textPrimary)
-                            
-                            FlowLayout(spacing: Spacing.sm) {
-                                ForEach(progress.recentWordScores) { score in
-                                    WordScorePill(word: score.word, score: score.accuracy)
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Error Breakdown (mocked from struggling words)
-                    if let phase = progress.phaseProgress, !phase.strugglingWords.isEmpty {
-                        VStack(alignment: .leading, spacing: Spacing.md) {
-                            Text("Needs Practice")
-                                .font(Font.BotTheme.heading2)
-                                .foregroundColor(Color.BotTheme.textPrimary)
-                            
-                            ForEach(phase.strugglingWords, id: \.self) { word in
+                    if hasData {
+                        // Current Curriculum Card
+                        if let curriculum = progress.curriculum, let phase = progress.phaseProgress {
+                            VStack(alignment: .leading, spacing: Spacing.md) {
+                                Text("Phase \(curriculum.currentPhaseNumber): \(curriculum.goalTitle)")
+                                    .font(Font.BotTheme.heading2)
+                                    .foregroundColor(Color.BotTheme.textPrimary)
+                                
+                                ProgressChip(text: "\(phase.mastered)/\(phase.total) Mastered", systemIcon: "trophy.fill", tinted: true)
+                                
                                 HStack {
-                                    Text(word)
-                                        .font(Font.BotTheme.bodyPrimary)
-                                        .foregroundColor(Color.BotTheme.textPrimary)
-                                    Spacer()
-                                    Text("Consonants")
+                                    Text("Avg Score:")
                                         .font(Font.BotTheme.caption)
                                         .foregroundColor(Color.BotTheme.textSecondary)
+                                    Text("\(Int(phase.avgScore))")
+                                        .font(Font.BotTheme.numeric)
+                                        .foregroundColor(Color.BotTheme.textPrimary)
+                                    Spacer()
                                 }
-                                .padding()
-                                .background(Color.BotTheme.backgroundSecondary)
-                                .cornerRadius(Spacing.sm)
                             }
+                            .padding(Spacing.lg)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .cardStyle(radius: Radius.lg)
                         }
+                        
+                        // Recent Scores
+                        if !progress.recentWordScores.isEmpty {
+                            VStack(alignment: .leading, spacing: Spacing.md) {
+                                Text("Recent Words")
+                                    .font(Font.BotTheme.heading2)
+                                    .foregroundColor(Color.BotTheme.textPrimary)
+                                    .padding(.horizontal, Spacing.lg)
+                                    .padding(.top, Spacing.lg)
+                                
+                                FlowLayout(spacing: Spacing.sm) {
+                                    ForEach(progress.recentWordScores) { score in
+                                        WordScorePill(word: score.word, score: score.accuracy)
+                                    }
+                                }
+                                .padding(.horizontal, Spacing.lg)
+                                .padding(.bottom, Spacing.lg)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .cardStyle(radius: Radius.lg)
+                        }
+                        
+                        // Error Breakdown (mocked from struggling words)
+                        if let phase = progress.phaseProgress, !phase.strugglingWords.isEmpty {
+                            VStack(alignment: .leading, spacing: Spacing.md) {
+                                Text("Needs Practice")
+                                    .font(Font.BotTheme.heading2)
+                                    .foregroundColor(Color.BotTheme.textPrimary)
+                                
+                                ForEach(phase.strugglingWords, id: \.self) { word in
+                                    HStack {
+                                        Text(word)
+                                            .font(Font.BotTheme.bodyEmphasis)
+                                            .foregroundColor(Color.BotTheme.textPrimary)
+                                        Spacer()
+                                        Text("Consonants")
+                                            .font(Font.BotTheme.caption)
+                                            .foregroundColor(Color.BotTheme.textSecondary)
+                                    }
+                                    .padding(Spacing.md)
+                                    .cardStyle(radius: Radius.md, fill: Color.BotTheme.backgroundTertiary)
+                                }
+                            }
+                            .padding(Spacing.lg)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .cardStyle(radius: Radius.lg)
+                        }
+                    } else {
+                        VStack(spacing: Spacing.md) {
+                            Image(systemName: "chart.line.uptrend.xyaxis")
+                                .font(.system(size: 48))
+                                .foregroundColor(Color.BotTheme.primary)
+                                .padding(.bottom, Spacing.sm)
+                            
+                            Text("Hành trình của bạn bắt đầu từ đây")
+                                .font(Font.BotTheme.heading2)
+                                .foregroundColor(Color.BotTheme.textPrimary)
+                            
+                            Text("Hãy hoàn thành bài học đầu tiên để theo dõi tiến độ và từ vựng của bạn.")
+                                .font(Font.BotTheme.bodyPrimary)
+                                .foregroundColor(Color.BotTheme.textSecondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(Spacing.xl)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, Spacing.xl)
                     }
+                } else {
+                    VStack(spacing: Spacing.md) {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                                .font(.system(size: 48))
+                                .foregroundColor(Color.BotTheme.primary)
+                                .padding(.bottom, Spacing.sm)
+                            
+                        Text("Chưa có dữ liệu tiến độ")
+                            .font(Font.BotTheme.heading2)
+                            .foregroundColor(Color.BotTheme.textPrimary)
+                        
+                        Text("Hãy bắt đầu học để xem phân tích và gợi ý cải thiện.")
+                            .font(Font.BotTheme.bodyPrimary)
+                            .foregroundColor(Color.BotTheme.textSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(Spacing.xl)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 100)
                 }
             }
             .padding(Spacing.lg)
@@ -153,7 +225,6 @@ public struct ProgressDashboardView: View {
     }
     
     private func shortUserName(_ raw: String) -> String {
-        // If it looks like a UUID, show "User <first6>"
         if raw.count > 20, raw.contains("-") {
             return "User \(raw.prefix(6))"
         }
