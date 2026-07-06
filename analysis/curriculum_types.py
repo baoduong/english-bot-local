@@ -57,6 +57,23 @@ class ProgressionDecision(TypedDict):
 
 # --- Validators ---
 
+def _is_valid_sentence(text: str) -> tuple[bool, str]:
+    """Validate sentence completeness and placeholder absence.
+    
+    Returns:
+        tuple[bool, str]: (is_valid, reason_if_invalid)
+    """
+    if not text or len(text.strip()) < 3:
+        return False, "empty or too short"
+    
+    if "..." in text:
+        return False, "contains ellipsis (Ollama hallucinated placeholder)"
+    
+    if "___" in text or "[BLANK]" in text or "<" in text:
+        return False, "contains fill-in-blank marker"
+    
+    return True, ""
+
 def validate_goal_synthesis(data: dict) -> None:
     if not isinstance(data, dict):
         raise ValueError("Data must be a dictionary")
@@ -103,6 +120,11 @@ def validate_phase_content(data: dict) -> None:
     for i, item in enumerate(sentences):
         if not isinstance(item, dict) or not isinstance(item.get("sentence"), str) or not item["sentence"].strip():
             raise ValueError(f"Sentence item at index {i} must have a non-empty 'sentence' string")
+        
+        sentence_text = item["sentence"].strip()
+        is_valid, reason = _is_valid_sentence(sentence_text)
+        if not is_valid:
+            raise ValueError(f"Sentence at index {i} is invalid: {reason}. Sentence: {sentence_text}")
 
 def validate_progression_decision(data: dict) -> None:
     if not isinstance(data, dict):
@@ -173,8 +195,13 @@ def validate_post_session_summary(data: dict) -> None:
 def validate_smart_sentence_regen(data: dict) -> None:
     if not isinstance(data, dict):
         raise ValueError("Data must be a dictionary")
-    if "sentence" not in data or not isinstance(data["sentence"], str) or not data["sentence"].strip():
+    sentence = data.get("sentence")
+    if "sentence" not in data or not isinstance(sentence, str) or not sentence.strip():
         raise ValueError("sentence must be a non-empty string")
+    
+    is_valid, reason = _is_valid_sentence(sentence.strip())
+    if not is_valid:
+        raise ValueError(f"Generated sentence is invalid: {reason}. Sentence: {sentence}")
 
 
 def validate_word_pronunciation(data: dict) -> None:

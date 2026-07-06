@@ -90,6 +90,10 @@ Requirements:
 - "milestones[].description" and "milestones[].criteria" MUST be written in VIETNAMESE (Tiếng Việt) — this text is shown directly to Vietnamese learners in the app. Use natural, conversational Vietnamese.
 - "vietnamese_gloss" in vocabulary stays in Vietnamese as before.
 - All other fields (theme, vocabulary[].word, vocabulary[].ipa, vocabulary[].example_sentence) MUST stay in English.
+- Each example_sentence MUST be a complete, grammatically correct English sentence.
+- Do NOT use ellipsis ("...") as a placeholder or shortening device in any sentence.
+- Do NOT use blank markers like "___", "[BLANK]", "<word>" in any sentence.
+- Every sentence must be immediately speakable by a learner — no missing words or incomplete phrases.
 """
 
 def phase_content_prompt(phase_plan: dict, sentence_count: int = 12) -> str:
@@ -104,9 +108,13 @@ Generate exactly {sentence_count} practice sentences based on the phase plan.
 Requirements:
 1. Each sentence MUST contain at least 2 vocabulary words from the phase plan's vocabulary list.
 2. Sentences must be natural English, not forced or awkward.
-3. Assign a difficulty_score from 1 (easy) to 5 (hard).
-4. Identify target_phonemes (IPA symbols that are challenging in the sentence).
-5. List the target_words (vocabulary words from the phase that appear in the sentence).
+3. Each sentence MUST be a complete, grammatically correct English sentence.
+4. Do NOT use ellipsis ("...") as a placeholder or shortening device.
+5. Do NOT use blank markers like "___", "[BLANK]", "<word>" or similar placeholders.
+6. Every sentence must be immediately speakable by a learner — no missing words.
+7. Assign a difficulty_score from 1 (easy) to 5 (hard).
+8. Identify target_phonemes (IPA symbols that are challenging in the sentence).
+9. List the target_words (vocabulary words from the phase that appear in the sentence).
 
 Return ONLY a valid JSON object matching this exact schema:
 
@@ -288,6 +296,8 @@ A Vietnamese learner is struggling with specific sounds. Create ONE new practice
 3. Fits the theme: "{theme}"
 4. Is different from these failed sentences:
 {failed_str}
+5. MUST be a complete, grammatically correct English sentence — immediately speakable.
+6. Do NOT use ellipsis ("...") or blank markers like "___", "[BLANK]", "<word>".
 
 Difficulty level: {difficulty} (1=very easy, 5=hard). Generate at level {max(1, difficulty - 1)}.
 
