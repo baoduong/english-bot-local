@@ -1,12 +1,38 @@
 from __future__ import annotations
 
 import os
+import shutil
+import sys
 import threading
 
 _MODEL_NAME = "facebook/wav2vec2-lv-60-espeak-cv-ft"
 
-if "/opt/homebrew/bin" not in os.environ.get("PATH", ""):
-    os.environ["PATH"] = "/opt/homebrew/bin:" + os.environ.get("PATH", "")
+
+def _ensure_espeak_ng_in_path() -> None:
+    if shutil.which("espeak-ng") is not None:
+        return
+
+    candidates: list[str] = []
+    if sys.platform == "darwin":
+        candidates = ["/opt/homebrew/bin", "/usr/local/bin"]
+    elif sys.platform == "win32":
+        candidates = [
+            r"C:\Program Files\eSpeak NG",
+            r"C:\Program Files (x86)\eSpeak NG",
+        ]
+    elif sys.platform.startswith("linux"):
+        candidates = ["/usr/bin", "/usr/local/bin"]
+
+    current_path = os.environ.get("PATH", "")
+    for candidate in candidates:
+        if os.path.isdir(candidate) and candidate not in current_path:
+            os.environ["PATH"] = candidate + os.pathsep + current_path
+            if shutil.which("espeak-ng") is not None:
+                return
+            current_path = os.environ["PATH"]
+
+
+_ensure_espeak_ng_in_path()
 
 
 class PhonemeRecognizer:
