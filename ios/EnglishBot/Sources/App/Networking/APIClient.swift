@@ -10,8 +10,10 @@ public enum APIError: Error {
 }
 
 public class APIClient: ObservableObject {
-    private static let baseURLDefaultsKey = "eb_apiBaseURL"
-    public static let shared = APIClient(baseURL: APIClient.resolveBaseURL())
+    // MARK: - UserDefaults key (internal for testability)
+    static let baseURLDefaultsKey = "eb_apiBaseURL"
+
+    public static let shared = APIClient()
     public static let configuredSession: URLSession = {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
@@ -20,47 +22,41 @@ public class APIClient: ObservableObject {
         return URLSession(configuration: config)
     }()
 
-    public let baseURL: URL
+    // MARK: - Computed baseURL (re-reads UserDefaults on every access — live update)
+    /// P0-4 / P1-5: Computed property reads current UserDefaults value per call.
+    /// Fallback is http://localhost:8080 (matches Windows scripts default, NOT 8000).
+    public var baseURL: URL { Self.readCurrentBaseURL() }
+
     private let session: URLSession
-    
-    public init(baseURL: URL = URL(string: "http://localhost:8000")!, session: URLSession = APIClient.configuredSession) {
-        self.baseURL = baseURL
+
+    /// Keep init signature for backward compat. The `baseURL` parameter is IGNORED —
+    /// actual URL always comes from UserDefaults via computed property.
+    public init(baseURL: URL = URL(string: "http://localhost:8080")!, session: URLSession = APIClient.configuredSession) {
+        #if DEBUG
+        if baseURL.absoluteString != "http://localhost:8080" {
+            print("⚠️ [APIClient] init(baseURL:) parameter ignored — URL always read from UserDefaults")
+        }
+        #endif
         self.session = session
     }
 
-    private static var defaultBaseURL: URL {
-        URL(string: "http://localhost:8000")!
-    }
+    // MARK: - Private URL resolution
 
-    private static func resolveBaseURL() -> URL {
+    private static func readCurrentBaseURL() -> URL {
         if let storedValue = UserDefaults.standard.string(forKey: baseURLDefaultsKey) {
             let trimmed = storedValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let storedURL = URL(string: trimmed), !trimmed.isEmpty {
-                return storedURL
+            if !trimmed.isEmpty,
+               let url = URL(string: trimmed),
+               let scheme = url.scheme,
+               (scheme == "http" || scheme == "https") {
+                return url
             }
         }
-
-        if let discoveredURL = discoverBonjourBaseURL() {
-            UserDefaults.standard.set(discoveredURL.absoluteString, forKey: baseURLDefaultsKey)
-            return discoveredURL
-        }
-
-        return defaultBaseURL
+        return URL(string: "http://localhost:8080")!
     }
 
-    private static func discoverBonjourBaseURL() -> URL? {
-        let semaphore = DispatchSemaphore(value: 0)
-        var discoveredURL: URL?
+    // MARK: - Decode / Encode helpers
 
-        Task.detached {
-            discoveredURL = await BonjourDiscovery().discover(timeout: 5.0)
-            semaphore.signal()
-        }
-
-        _ = semaphore.wait(timeout: .now() + 5.1)
-        return discoveredURL
-    }
-    
     private func decode<T: Decodable>(_ data: Data, type: T.Type) throws -> T {
         let decoder = JSONDecoder()
         do {
@@ -78,75 +74,77 @@ public class APIClient: ObservableObject {
             throw APIError.decodingError(error)
         }
     }
-    
+
     private func encode<T: Encodable>(_ payload: T) throws -> Data {
         let encoder = JSONEncoder()
         return try encoder.encode(payload)
     }
-    
+
+    // MARK: - Onboarding
+
     public func startOnboarding(userId: String) async throws -> OnboardingTurnResponse {
         guard let url = URL(string: "/onboarding/start", relativeTo: baseURL) else { throw APIError.invalidURL }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try encode(OnboardingStartRequest(userId: userId, resumeIfExists: true))
-        
+
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         if !(200...299).contains(httpResponse.statusCode) { throw APIError.httpError(httpResponse.statusCode) }
-        
+
         return try decode(data, type: OnboardingTurnResponse.self)
     }
-    
+
     public func respondOnboarding(userId: String, message: String) async throws -> OnboardingRespondResponse {
         guard let url = URL(string: "/onboarding/respond", relativeTo: baseURL) else { throw APIError.invalidURL }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try encode(OnboardingRespondRequest(userId: userId, message: message))
-        
+
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         if !(200...299).contains(httpResponse.statusCode) { throw APIError.httpError(httpResponse.statusCode) }
-        
+
         return try decode(data, type: OnboardingRespondResponse.self)
     }
-    
+
     public func confirmOnboarding(userId: String, confirmed: Bool) async throws -> OnboardingConfirmResponse {
         guard let url = URL(string: "/onboarding/confirm", relativeTo: baseURL) else { throw APIError.invalidURL }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try encode(OnboardingConfirmRequest(userId: userId, confirmed: confirmed))
-        
+
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         if !(200...299).contains(httpResponse.statusCode) { throw APIError.httpError(httpResponse.statusCode) }
-        
+
         return try decode(data, type: OnboardingConfirmResponse.self)
     }
-    
+
     public func getCurrentCurriculum(userId: String) async throws -> CurrentCurriculumResponse {
         guard let url = URL(string: "/curriculum/current?user_id=\(userId)", relativeTo: baseURL) else { throw APIError.invalidURL }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        
+
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         if !(200...299).contains(httpResponse.statusCode) { throw APIError.httpError(httpResponse.statusCode) }
-        
+
         return try decode(data, type: CurrentCurriculumResponse.self)
     }
-    
+
     public func getPhaseDetail(phaseId: Int) async throws -> PhaseDetailResponse {
         guard let url = URL(string: "/curriculum/phase/\(phaseId)", relativeTo: baseURL) else { throw APIError.invalidURL }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        
+
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         if !(200...299).contains(httpResponse.statusCode) { throw APIError.httpError(httpResponse.statusCode) }
-        
+
         return try decode(data, type: PhaseDetailResponse.self)
     }
 
