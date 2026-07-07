@@ -24,31 +24,72 @@ public struct EnglishBotApp: View {
     @AppStorage("eb_activeTab") private var activeTab: Int = 0
     @State private var isShowingSettings = false
 
-    public init() {}
+    @StateObject private var bootstrap: AppBootstrapViewModel
+
+    public init() {
+        _bootstrap = StateObject(wrappedValue: AppBootstrapViewModel(
+            reachability: { url, timeout in await Reachability.probe(baseURL: url, timeout: timeout) },
+            bonjourDiscover: { await BonjourDiscovery().discover(timeout: 5.0) },
+            readStoredURL: { UserDefaults.standard.string(forKey: "eb_apiBaseURL") },
+            writeStoredURL: { UserDefaults.standard.set($0, forKey: "eb_apiBaseURL") },
+            readOnboardingDone: { UserDefaults.standard.bool(forKey: "eb_onboardingDone") },
+            setOnboardingDone: { UserDefaults.standard.set($0, forKey: "eb_onboardingDone") },
+            curriculumProbe: { userId in
+                do {
+                    _ = try await APIClient.shared.getCurrentCurriculum(userId: userId)
+                    return true
+                } catch { return false }
+            },
+            readUserId: { UserDefaults.standard.string(forKey: "eb_userId") ?? "" }
+        ))
+    }
 
     public var body: some View {
         Group {
             if userId.isEmpty {
-                ProgressView("Loading...")
+                SplashView(viewModel: bootstrap)
                     .onAppear { userId = UUID().uuidString }
-            } else if !onboardingDone {
-                onboardingFlow
-                    .task {
-                        if let _ = try? await APIClient.shared.getCurrentCurriculum(userId: userId) {
-                            onboardingDone = true
-                        }
-                    }
             } else {
-                mainTabView
+                switch bootstrap.route {
+                case .checking:
+                    SplashView(viewModel: bootstrap)
+                        .task { await bootstrap.bootstrap() }
+                case .settingsRequired:
+                    SplashView(viewModel: bootstrap)
+                        #if os(iOS)
+                        .fullScreenCover(isPresented: .constant(true)) {
+                            NavigationStack {
+                                SettingsView(
+                                    mode: .setupRequired,
+                                    onSaveAndContinue: { await bootstrap.retryAfterSettingsSave() }
+                                )
+                            }
+                        }
+                        #else
+                        .sheet(isPresented: .constant(true)) {
+                            NavigationStack {
+                                SettingsView(
+                                    mode: .setupRequired,
+                                    onSaveAndContinue: { await bootstrap.retryAfterSettingsSave() }
+                                )
+                            }
+                        }
+                        #endif
+                case .onboarding:
+                    onboardingFlow
+                case .main:
+                    mainTabView
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .goalReset)) { _ in
             onboardingDone = false
             activeTab = 0
+            Task { await bootstrap.handleGoalReset() }
         }
         .sheet(isPresented: $isShowingSettings) {
             NavigationStack {
-                SettingsView()
+                SettingsView(mode: .normal)
             }
         }
     }
