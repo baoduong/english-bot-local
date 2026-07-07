@@ -70,7 +70,49 @@ Whisper model (`small`) is eager-loaded at startup — takes a few seconds. Olla
 
 **Code comments are in Vietnamese** — this is intentional and consistent throughout the codebase.
 
+## iOS App Architecture
+
+### Key iOS Source Files
+
+| File | Role |
+|------|------|
+| `ios/EnglishBot/Sources/App/EnglishBotApp.swift` | Root view — state machine driven by `AppBootstrapViewModel` |
+| `ios/EnglishBot/Sources/App/Launch/AppBootstrapViewModel.swift` | Launch state machine: `.checking → .settingsRequired / .onboarding / .main`. Owns reachability probe + Bonjour discovery + curriculum probe via closure DI. Includes `isBootstrapping` reentry guard. |
+| `ios/EnglishBot/Sources/App/Launch/SplashView.swift` | Splash screen shown during `.checking` state. Uses `Font.BotTheme.heading1` (NOT `headingLarge`). |
+| `ios/EnglishBot/Sources/App/Networking/Reachability.swift` | GET /health probe. Returns `.healthy / .degraded / .unreachable`. Parses `status` JSON field. Rejects HTML captive portal responses. |
+| `ios/EnglishBot/Sources/App/Networking/APIClient.swift` | REST client. `baseURL` is a **computed property** that re-reads `UserDefaults` on every access — URL changes apply live without restart. Fallback: `http://localhost:8080`. |
+| `ios/EnglishBot/Sources/App/Networking/WebSocketClient.swift` | WebSocket client. `baseURL` is a **computed property** with `http↔ws` scheme conversion. Reads same `eb_apiBaseURL` key as APIClient. Fallback: `ws://localhost:8080`. |
+| `ios/EnglishBot/Sources/App/Settings/SettingsView.swift` | Settings screen. Supports `SettingsMode.normal` (gear icon, dismissable sheet) and `SettingsMode.setupRequired` (blocking fullScreenCover, no Cancel button). |
+
+### App Launch Flow
+
+```
+Cold launch → SplashView (.checking) → AppBootstrapViewModel.bootstrap()
+    → URL configured? → Reachability probe → .healthy → onboarding or main
+                                           → .degraded/.unreachable → SettingsView (fullScreenCover, blocking)
+    → URL not configured → Bonjour discovery → found? → probe → ...
+                                              → not found → SettingsView (fullScreenCover, blocking)
+```
+
+See `docs/ios/first-launch-flow.md` for full state diagram and troubleshooting.
+
+### APIClient Notes
+
+- `APIClient.baseURL` is a **computed var** (not `let`) — re-reads `UserDefaults.standard["eb_apiBaseURL"]` on every call.
+- `init(baseURL:)` parameter is **ignored** — actual URL always comes from UserDefaults.
+- Fallback port is **8080** (not 8000) — matches Windows scripts default.
+- Do NOT cache `APIClient.shared.baseURL` — always access it fresh.
+
+### WebSocketClient Notes
+
+- `WebSocketClient.baseURL` is a **computed var** — re-reads UserDefaults and converts `http://` → `ws://`, `https://` → `wss://`.
+- `connect(userId:)` uses the computed URL — reconnects always use the current configured URL.
+- Fallback: `ws://localhost:8080` (not 8000).
+
 ## System Flows
+
+**App Launch Flow (new):**
+On cold launch, `AppBootstrapViewModel.bootstrap()` runs: checks stored URL → Bonjour fallback → reachability probe → routes to `.settingsRequired`, `.onboarding`, or `.main`. The curriculum probe (whether user has an existing curriculum) runs inside `bootstrap()` via the `curriculumProbe` closure — NOT as an inline `.task` on `onboardingFlow`.
 
 **Onboarding Flow:**
 On first launch, the iOS app calls `POST /onboarding/start`. The `OnboardingChat` (Ollama) initiates a natural conversation to discover the user's learning goals, English level, and context. Once enough context is gathered, it generates a confirmation JSON. If the user confirms, the system proceeds to generate the curriculum.
